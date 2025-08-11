@@ -35,7 +35,7 @@ def pdok_workflow_func() -> None:
 
     # Read all required configuration from secrets
     source = read_secret("source")
-    ahn_source = "/ahn.json"
+    ahn_source = "file:///ahn.json"
     url_prefix = read_secret("url_prefix")
     destination_s3_url = read_secret("destination_s3_url")
     destination_s3_user = read_secret("destination_s3_user")
@@ -75,16 +75,16 @@ def pdok_workflow_func() -> None:
 
 
 def generate_workflow() -> None:
-    with WorkflowTemplate(name="pdokupdate",
-                          generate_name="pdokupdate-",
-                          entrypoint="pdokupdatedag",
+    with WorkflowTemplate(name="pdokupdategeluid",
+                          generate_name="pdokupdategeluid-",
+                          entrypoint="pdokupdategeluiddag",
                           namespace="argo",
                           service_account_name="workflow-runner",
                           image_pull_secrets="acrdddprodman") as w:
-        with DAG(name="pdokupdatedag"):
+        with DAG(name="pdokupdategeluiddag"):
             workflow: Script = pdok_workflow_func()  # type: ignore   # noqa: F841
 
-        with open("generated/pdokupdate.yaml", "w") as f:
+        with open("generated/pdokupdategeluid.yaml", "w") as f:
             w.to_yaml(f)
 
 

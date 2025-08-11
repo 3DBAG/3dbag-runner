@@ -10,7 +10,7 @@ if __name__ == "__main__":
     from argo import height
     from argo import lazdb
     from argo import lazsplit
-    from argo import pdokupdate
+    from argo import pdokupdategeluid
     from argo import roofer
     from argo import tyler
     from argo import validatecityjson
@@ -35,8 +35,8 @@ if __name__ == "__main__":
     log.info("Generating lazsplit workflow...")
     lazsplit.generate_workflow()
 
-    log.info("Generating pdokupdate workflow...")
-    pdokupdate.generate_workflow()
+    log.info("Generating pdokupdategeluid workflow...")
+    pdokupdategeluid.generate_workflow()
 
     log.info("Generating roofer workflow...")
     roofer.generate_workflow()
