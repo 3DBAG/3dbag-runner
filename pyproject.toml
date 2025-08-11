@@ -8,6 +8,7 @@ dependencies = [
     "azure-storage-blob>=12.25.1",
     "boto3>=1.40.1",
     "fiona>=1.10.1",
+    "flake8>=7.0.0",
     "gdal==3.7.3",
     "geopandas>=1.0.1",
     "hera[yaml]>=5.20.1",
@@ -39,4 +40,10 @@ addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
+]
+
+[dependency-groups]
+dev = [
+    "autoflake>=2.3.1",
+    "autopep8>=2.3.2",
 ]

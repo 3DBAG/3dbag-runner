@@ -4,9 +4,9 @@ from pathlib import Path
 
 
 from hera.workflows import script, EmptyDirVolume, Artifact, SecretVolume
-from hera.workflows.models.io.k8s.api.core.v1 import Toleration, ResourceRequirements, Affinity, NodeAffinity, NodeSelector, NodeSelectorTerm, NodeSelectorRequirement, Volume
+from hera.workflows.models.io.k8s.api.core.v1 import Toleration, ResourceRequirements, Affinity, NodeAffinity, NodeSelector, NodeSelectorTerm, NodeSelectorRequirement
 from hera.workflows.models.io.k8s.apimachinery.pkg.api.resource import Quantity
-from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy 
+from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy
 
 DEFAULT_TOLERATIONS = Toleration(
     key="kubernetes.azure.com/scalesetpriority",
@@ -37,18 +37,21 @@ DEFAULT_AFFINITY = Affinity(
 )
 
 # Load default image from .default_image file if it exists, otherwise use fallback
+
+
 def _get_default_image() -> str:
     default_image_file = Path(__file__).parent.parent.parent / ".default_image"
     if default_image_file.exists():
         return default_image_file.read_text().strip()
     return "acrexample.azurecr.io/container:master"
 
+
 DEFAULT_IMAGE = _get_default_image()
 DEFAULT_VOLUMES = [EmptyDirVolume(name="workflow", mount_path="/workflow")]
 MEMORY_EMPTY_DIR = [EmptyDirVolume(name="workflow", mount_path="/workflow", medium="Memory")]
 DEFAULT_COMMAND = ["/app/.venv/bin/python"]
 DEFAULT_RETRY_STRATEGY = RetryStrategy(
-    limit=1# type: ignore
+    limit=1  # type: ignore
 )
 
 # Default sizes
@@ -77,6 +80,7 @@ SIZE_D2 = ResourceRequirements(
     limits=cast(dict[str, Quantity], {"cpu": "2", "memory": "8Gi"}),
 )
 
+
 class _ScriptKwargs(TypedDict, total=False):
     image: str
     volumes: Sequence[EmptyDirVolume | SecretVolume]
@@ -88,11 +92,13 @@ class _ScriptKwargs(TypedDict, total=False):
     image_pull_policy: Literal["Always", "IfNotPresent", "Never"]
     outputs: list[Artifact] | Artifact
     inputs: list[Artifact] | Artifact
-    retry_strategy: RetryStrategy  
+    retry_strategy: RetryStrategy
+
 
 # Typing
 P = ParamSpec("P")
 R = TypeVar("R")
+
 
 def argo_worker(**custom_kwargs: Unpack[_ScriptKwargs]) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """
@@ -108,12 +114,13 @@ def argo_worker(**custom_kwargs: Unpack[_ScriptKwargs]) -> Callable[[Callable[P,
             "tolerations": [DEFAULT_TOLERATIONS],
             "resources": SIZE_D32,
             "affinity": DEFAULT_AFFINITY,
-            "image_pull_policy": "Always", 
+            "image_pull_policy": "Always",
             "retry_strategy": DEFAULT_RETRY_STRATEGY,
             **custom_kwargs,
         }
         return script(**merged_kwargs)(func)
     return decorator
+
 
 def default_worker(**custom_kwargs: Unpack[_ScriptKwargs]) -> Callable[[Callable[P, R]], Callable[P, R]]:
     """

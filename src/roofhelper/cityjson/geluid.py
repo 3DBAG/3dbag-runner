@@ -3,8 +3,8 @@ import json
 from pathlib import Path
 from typing import Any, Final, Generator, Optional
 
-import fiona
 from shapely.geometry import Polygon, mapping
+
 
 class Building:
     footprint: list[list[float]]
@@ -51,6 +51,7 @@ class Building:
             f"  Reconstruction Method: {self.reconstructie_methode}"
         )
 
+
 def safe_subtract(value: Any, base: Optional[float]) -> float:
     """
     Subtract base from value, but return None if either is None
@@ -62,7 +63,8 @@ def safe_subtract(value: Any, base: Optional[float]) -> float:
         return value - base
     except (TypeError, KeyError):
         return 0.0
-    
+
+
 def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
     data = None
 
@@ -75,7 +77,7 @@ def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
     vertices = data["vertices"]
     cityobjects = data["CityObjects"].items()
 
-    for cityobject in [v for _, v in cityobjects if v["type"] == "Building"]:    
+    for cityobject in [v for _, v in cityobjects if v["type"] == "Building"]:
         attributes = cityobject["attributes"]
         if attributes["status"] == "Pand ten onrechte opgevoerd":
             continue
@@ -86,7 +88,7 @@ def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
         footprint_vertex_idx = cityobject["geometry"][0]["boundaries"][0][0]
         footprint_vertices_raw = [vertices[x] for x in footprint_vertex_idx]
         footprint_vertices_translated = []
-        for vertex_raw in footprint_vertices_raw: 
+        for vertex_raw in footprint_vertices_raw:
             x = vertex_raw[0] * scale_x + translate_x
             y = vertex_raw[1] * scale_y + translate_y
             z = vertex_raw[2] * scale_z + translate_z
@@ -109,16 +111,16 @@ def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
 
         # LOD 0 by default
         building_lod0.roof_elevation_50p = safe_subtract(
-            attributes.get("rf_roof_elevation_50p"),  building_lod0.h_maaiveld
+            attributes.get("rf_roof_elevation_50p"), building_lod0.h_maaiveld
         )
         building_lod0.roof_elevation_70p = safe_subtract(
-            attributes.get("rf_roof_elevation_70p"),  building_lod0.h_maaiveld
+            attributes.get("rf_roof_elevation_70p"), building_lod0.h_maaiveld
         )
         building_lod0.roof_elevation_min = safe_subtract(
-            attributes.get("rf_roof_elevation_min"),  building_lod0.h_maaiveld
+            attributes.get("rf_roof_elevation_min"), building_lod0.h_maaiveld
         )
         building_lod0.roof_elevation_max = safe_subtract(
-            attributes.get("rf_roof_elevation_max"),  building_lod0.h_maaiveld
+            attributes.get("rf_roof_elevation_max"), building_lod0.h_maaiveld
         )
         building_lod0.lod = "0"
         building_lod0.reconstructie_methode = "3dgi-lod0"
@@ -128,7 +130,7 @@ def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
         # Fetch the child for the remaining attributes
         dd_id: int = 0
 
-        if len(cityobject["children"]) > 0: #lod 1.3 source
+        if len(cityobject["children"]) > 0:  # lod 1.3 source
             pand_deel_id = 0
             for child_name in cityobject["children"]:
                 child_data = data["CityObjects"][child_name]["geometry"]
@@ -138,19 +140,19 @@ def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
                         value_idx = geometry["semantics"]["values"][0]
 
                         for index, surface in enumerate(geometry["semantics"]["surfaces"]):
-                            if surface["type"] == "RoofSurface": # For each 
+                            if surface["type"] == "RoofSurface":  # For each
                                 building_lod13 = copy.copy(building_lod0)
                                 building_lod13.dd_id = dd_id
                                 building_lod13.pand_deel_id = pand_deel_id
                                 dd_id += 1
-                                surface_footprint_vertex_idx = [] 
+                                surface_footprint_vertex_idx = []
                                 for boundary_idx, _ in enumerate(boundaries):
                                     if value_idx[boundary_idx] == index:
                                         surface_footprint_vertex_idx.extend(boundaries[boundary_idx][0])
                                 surface_vertices_raw = [vertices[x] for x in surface_footprint_vertex_idx]
 
                                 surface_vertices_translated = []
-                                for vertex_raw in surface_vertices_raw: 
+                                for vertex_raw in surface_vertices_raw:
                                     x = vertex_raw[0] * scale_x + translate_x
                                     y = vertex_raw[1] * scale_y + translate_y
                                     z = vertex_raw[2] * scale_z + translate_z
@@ -168,17 +170,17 @@ def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
 
                                 if "rf_roof_elevation_max" in surface:
                                     building_lod13.roof_elevation_max = safe_subtract(surface["rf_roof_elevation_max"], building_lod0.h_maaiveld)
-                                
+
                                 building_lod13.lod = "1.3"
                                 building_lod13.reconstructie_methode = "3dgi-lod13"
                                 has_yielded_lod13 = True
                                 yield building_lod13
                 pand_deel_id += 1
-                
-        
-        if has_yielded_lod13 == False:
+
+        if not has_yielded_lod13:
             yield building_lod0
-            
+
+
 # Export to GeoPackage using Fiona
 GELUID_SCHEMA: Final = {
     'geometry': 'Polygon',
@@ -204,8 +206,8 @@ HOOGTE_SCHEMA: Final = {
     'geometry': 'Polygon',
     'properties': {
         # ID
-        # 'id': 'int', 
-        'identificatie': 'str', 
+        # 'id': 'int',
+        'identificatie': 'str',
         'pand_deel_id': 'int',
         'dd_id': 'int',
         'h_maaiveld': 'float',
@@ -213,8 +215,8 @@ HOOGTE_SCHEMA: Final = {
         'roof_elevation_70p': 'float',
         'roof_elevation_min': 'float',
         'roof_elevation_max': 'float',
-        #'dd_data_coverage': 'float',
-        'dak_type': 'str', #Enum conversion
+        # 'dd_data_coverage': 'float',
+        'dak_type': 'str',  # Enum conversion
         'pw_datum': 'str',
         # 'pw_actueel': 'int',
         'pw_bron': 'str',
@@ -261,9 +263,10 @@ def building_to_gpkg_dict(b: Building) -> dict[Any, Any]:
         }
     }
 
+
 def building_to_hoogte_gpkg_dict(b: Building) -> dict[Any, Any]:
     polygon = Polygon([(pt[0], pt[1]) for pt in b.footprint])
-    if b.tijdstip_eind_registratie_lv == None:
+    if b.tijdstip_eind_registratie_lv is None:
         b.tijdstip_eind_registratie_lv = '2199/12/31 00:00:00'
 
     return {
@@ -277,13 +280,13 @@ def building_to_hoogte_gpkg_dict(b: Building) -> dict[Any, Any]:
             'roof_elevation_70p': b.roof_elevation_70p,
             'roof_elevation_min': b.roof_elevation_min,
             'roof_elevation_max': b.roof_elevation_max,
-            'dak_type': b.dak_type, # nummer
+            'dak_type': b.dak_type,  # nummer
             'pw_datum': b.pw_actueel,
             # 'pw_actueel': 2,
             'pw_bron': b.pw_bron,
-            #'versie_methode': '0ed1dc74b3146b10d4acb5196fde31348e887b06',
-            #'kas_warenhuis': False,
-            #'kwaliteits_klasse': "keep",
+            # 'versie_methode': '0ed1dc74b3146b10d4acb5196fde31348e887b06',
+            # 'kas_warenhuis': False,
+            # 'kwaliteits_klasse': "keep",
             'documentnummer': b.document_nummer,
             'documentdatum': b.document_datum,
             'pandstatus': b.status,

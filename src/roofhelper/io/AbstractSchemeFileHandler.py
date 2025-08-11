@@ -6,6 +6,7 @@ from typing import BinaryIO, Generator, Optional
 from roofhelper.io.FileHandle import FileHandle
 from roofhelper.io.EntryProperties import EntryProperties
 
+
 class AbstractSchemeHandler(ABC):
     @staticmethod
     @abstractmethod
@@ -20,7 +21,7 @@ class AbstractSchemeHandler(ABC):
     @staticmethod
     @abstractmethod
     def upload_file_direct(file: Path, uri: str) -> None:
-        pass 
+        pass
 
     @staticmethod
     @abstractmethod

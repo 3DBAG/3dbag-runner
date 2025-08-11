@@ -9,7 +9,7 @@ import re
 import tempfile
 from threading import Thread
 from typing import BinaryIO, Generator, Optional
-from urllib.parse import urlparse, urlunparse
+from urllib.parse import urlparse
 from azure.storage.blob import BlobClient, ContainerClient, BlobProperties
 
 from .AbstractSchemeFileHandler import AbstractSchemeHandler
@@ -18,22 +18,23 @@ from .EntryProperties import EntryProperties
 
 log = logging.getLogger()
 
+
 class AzureSchemeFileHandler(AbstractSchemeHandler):
     @staticmethod
     def _parse_azure_uri(uri: str) -> tuple[str, str, str, str, str, str]:
         """
         Parse an Azure URI and extract components.
-        
+
         Returns:
             tuple: (scheme, netloc, account_name, container_name, path_prefix, sas_token)
         """
         sas_uri = uri[8:]  # Remove 'azure://' prefix
         parsed_uri = urlparse(sas_uri)
-        
+
         # Check if this is Azurite (local emulator) or real Azure Storage
         # Azurite format: http://localhost:10000/devstoreaccount1/container/path
         # Real Azure format: https://account.blob.core.windows.net/container/path
-        
+
         if parsed_uri.netloc.startswith('localhost') or parsed_uri.netloc.startswith('127.0.0.1'):
             # Azurite format - account and container in path
             path_parts = parsed_uri.path.split('/')
@@ -47,7 +48,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
             path_parts = parsed_uri.path.split('/')
             container_name = path_parts[1] if len(path_parts) > 1 else ''
             path_prefix = "/".join(path_parts[2:]) if len(path_parts) > 2 else ""
-        
+
         return parsed_uri.scheme, parsed_uri.netloc, account_name, container_name, path_prefix, parsed_uri.query
 
     @staticmethod
@@ -78,7 +79,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
     def download_file(uri: str, temporary_directory: Optional[Path], file: Optional[str] = None) -> FileHandle:
         sas_url = uri[8:]
 
-        if file != None:
+        if file is not None:
             sas_url = AzureSchemeFileHandler.navigate(uri, file)[8:]
 
         parsed_url = urlparse(sas_url)
@@ -88,13 +89,13 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
         blob_client = BlobClient.from_blob_url(sas_url)
 
         with tempfile.NamedTemporaryFile(dir=temporary_directory, delete=False, suffix=extension) as f:
-            stream = blob_client.download_blob(max_concurrency=10) 
-            stream.readinto(f)  
+            stream = blob_client.download_blob(max_concurrency=10)
+            stream.readinto(f)
             return FileHandle(Path(f.name), True)
 
     @staticmethod
     def upload_file_directory(file: Path, uri: str, filename: Optional[str]) -> None:
-        if filename != None:
+        if filename is not None:
             destination = AzureSchemeFileHandler.navigate(uri, filename)
         else:
             destination = AzureSchemeFileHandler.navigate(uri, file.name)
@@ -106,7 +107,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
         # Read & convert text streams into bytes
         if isinstance(stream, TextIOBase):
             text = stream.read()
-            data = text.encode('utf-8') # type: ignore
+            data = text.encode('utf-8')  # type: ignore
             return BytesIO(data)
         else:
             # Assume binary; rewind to start
@@ -116,7 +117,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
     @staticmethod
     def upload_stream_direct(stream: BinaryIO, uri: str) -> None:
         blob_client = BlobClient.from_blob_url(uri[8:])
-        
+
         log.info("Uploading " + uri[8:])
         blob_client.upload_blob(AzureSchemeFileHandler._get_read_buffer(stream), overwrite=True)
 
@@ -137,7 +138,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
     def _list_files_impl(uri: str, regex: str = '', recursive: bool = False) -> Generator[EntryProperties]:
         """
         Internal implementation for listing files in Azure blob storage.
-        
+
         Args:
             uri: Azure URI to list files from
             regex: Optional regex pattern to filter files
@@ -170,18 +171,17 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
 
             blob_iter = container_client.walk_blobs(name_starts_with=name_starts_with, delimiter='/')
 
-            
         for blob in blob_iter:
             if not isinstance(blob, BlobProperties):
                 # This is a BlobPrefix (directory) when using walk_blobs with delimiter
                 # Create EntryProperties for the directory prefix
                 blob_prefix = blob  # This is actually a BlobPrefix object
                 prefix_name = blob_prefix.name.rstrip('/')
-                
+
                 # If regex is provided, filter directories based on it
                 if pattern and not pattern.match(prefix_name):
                     continue
-                
+
                 # Create directory URL using helper function
                 directory_url = AzureSchemeFileHandler._make_blob_url(scheme, netloc, account_name, container_name, f"{prefix_name}/", sas_token)
                 directory_entry = EntryProperties(
@@ -194,14 +194,14 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
                 )
                 yield directory_entry
                 continue
-            
+
             # Create the full URL with the SAS token using helper function
             blob_url = AzureSchemeFileHandler._make_blob_url(scheme, netloc, account_name, container_name, blob.name, sas_token)
-            
+
             # If regex is provided, filter files based on it
             if pattern and not pattern.match(blob.name):
                 continue
-            
+
             # Create EntryProperties with all available information from Azure Blob Storage
             entry = EntryProperties(
                 name=os.path.basename(blob.name),
@@ -211,7 +211,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
                 size=blob.size,
                 last_modified=blob.last_modified,
             )
-            
+
             yield entry
 
     @staticmethod
@@ -223,19 +223,19 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
     def list_entries_recursive(uri: str, regex: str = '') -> Generator[EntryProperties]:
         """List files recursively through all subdirectories."""
         return AzureSchemeFileHandler._list_files_impl(uri, regex, recursive=True)
-        
-    @staticmethod # change to only 
+
+    @staticmethod  # change to only
     def get_bytes(uri: str) -> bytes:
         blob_client = BlobClient.from_blob_url(uri[8:])
 
         stream = blob_client.download_blob()
         return stream.readall()
-    
+
     @staticmethod
     def navigate(uri: str, path: str) -> str:
         # Parse the original URI to get the current path prefix
         scheme, netloc, account_name, container_name, current_path, sas_token = AzureSchemeFileHandler._parse_azure_uri(uri)
-        
+
         # Combine current path with the new relative path
         if current_path and not current_path.endswith('/'):
             combined_path = f"{current_path}/{path}"
@@ -243,10 +243,10 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
             combined_path = f"{current_path}{path}"
         else:
             combined_path = path
-            
+
         blob_url = AzureSchemeFileHandler._make_blob_url(scheme, netloc, account_name, container_name, combined_path, sas_token)
         return f"azure://{blob_url}"
-    
+
     @staticmethod
     def file_exists(uri: str) -> bool:
         blob_client = BlobClient.from_blob_url(uri[8:])
@@ -278,7 +278,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
                 rel_path = local_path.relative_to(folder).as_posix()
                 task_queue.put((local_path, rel_path))
 
-            for _ in range(consumer_count): # one sentinel per consumer so they all terminate cleanly
+            for _ in range(consumer_count):  # one sentinel per consumer so they all terminate cleanly
                 task_queue.put(None)
 
         def _consumer() -> None:
@@ -297,10 +297,10 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
                     blob_path = f"{path_prefix}/{rel_path}"
                 else:
                     blob_path = rel_path
-                
+
                 # Create blob URL using helper function
                 blob_url = AzureSchemeFileHandler._make_blob_url(scheme, netloc, account_name, container_name, blob_path, sas_token)
-                
+
                 blob_client = BlobClient.from_blob_url(blob_url)
                 with open(local_path, "rb") as data:
                     log.info(f"Uploading {local_path}")
@@ -311,8 +311,8 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
         for t in _consumer_threads:
             t.start()
 
-        _producer()        
-        
+        _producer()
+
         for t in _consumer_threads:
             t.join()
 

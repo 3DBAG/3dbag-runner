@@ -1,6 +1,7 @@
 from hera.workflows import DAG, WorkflowTemplate, Script, EmptyDirVolume, SecretVolume
 from argo.argodefaults import argo_worker
 
+
 @argo_worker(volumes=[
     EmptyDirVolume(name="workflow", mount_path="/workflow"),
     SecretVolume(name="pdok-secrets", mount_path="/var/secrets/pdok-delivery-secrets", secret_name="pdok-delivery-secrets")
@@ -19,7 +20,7 @@ def pdok_workflow_func() -> None:
 
     # Read configuration from mounted secrets
     secrets_path = Path("/var/secrets/pdok-delivery-secrets")
-    
+
     def read_secret(key: str) -> str:
         """Read a secret value from the mounted secret volume."""
         try:
@@ -49,37 +50,43 @@ def pdok_workflow_func() -> None:
     # Step 1: Create PDOK index
     logger.info("Creating PDOK index")
     os.makedirs("/workflow/cache", exist_ok=True)
-    
+
     # Download the ahn source file to get the path
     file_handler = SchemeFileHandler(Path("/workflow/cache"))
     ahn_path = file_handler.download_file(ahn_source)
-    
+
     index_destination = Path("/workflow/cache/pdok_index.gpkg")
     create_pdok_index(source, ahn_path, index_destination, url_prefix, Path("/workflow/cache"))
-    
+
     logger.info("PDOK index created successfully")
 
     # Step 2: Trigger PDOK update using the created index
     logger.info("Starting PDOK update trigger")
     trigger_pdok_update(f"file://{index_destination}",
-                       destination_s3_url,
-                       destination_s3_user,
-                       destination_s3_key,
-                       s3_prefix,
-                       trigger_update_url,
-                       trigger_private_key_content,
-                       expected_gpkg_name)
+                        destination_s3_url,
+                        destination_s3_user,
+                        destination_s3_key,
+                        s3_prefix,
+                        trigger_update_url,
+                        trigger_private_key_content,
+                        expected_gpkg_name)
 
     logger.info("PDOK workflow completed successfully")
 
-with WorkflowTemplate(name="pdokupdate",
-                      generate_name="pdokupdate-",       
-                      entrypoint="pdokupdatedag", 
-                      namespace="argo",
-                      service_account_name="workflow-runner",
-                      image_pull_secrets="acrdddprodman") as w:
-    with DAG(name="pdokupdatedag"):
-        workflow: Script = pdok_workflow_func()  # type: ignore
 
-    with open("generated/pdokupdate.yaml", "w") as f:
-        w.to_yaml(f)
+def generate_workflow() -> None:
+    with WorkflowTemplate(name="pdokupdate",
+                          generate_name="pdokupdate-",
+                          entrypoint="pdokupdatedag",
+                          namespace="argo",
+                          service_account_name="workflow-runner",
+                          image_pull_secrets="acrdddprodman") as w:
+        with DAG(name="pdokupdatedag"):
+            workflow: Script = pdok_workflow_func()  # type: ignore   # noqa: F841
+
+        with open("generated/pdokupdate.yaml", "w") as f:
+            w.to_yaml(f)
+
+
+if __name__ == "__main__":
+    generate_workflow()

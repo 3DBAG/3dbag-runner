@@ -7,6 +7,7 @@ import fiona
 import geopandas as gpd
 from shapely.geometry import Polygon, box
 
+
 def _process_cell(args: Tuple[int, int, int, Path]) -> Optional[Tuple[float, float, float, float]]:
     x, y, grid_size, filepath = args
     cell: Polygon = box(x, y, x + grid_size, y + grid_size)
@@ -37,7 +38,8 @@ def _generate_cells(
     for result in results:
         if result is not None:
             yield result
-            
+
+
 def grid_create_on_intersecting_centroid(filepath: Path, grid_size: int) -> Generator[tuple[float, float, float, float]]:
     bounds = None
     with fiona.open(filepath, 'r') as src:

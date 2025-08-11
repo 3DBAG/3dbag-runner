@@ -1,4 +1,3 @@
-from io import BytesIO
 import multiprocessing
 import os
 from pathlib import Path
@@ -12,11 +11,12 @@ from .AbstractSchemeFileHandler import AbstractSchemeHandler
 from .FileHandle import FileHandle
 from .EntryProperties import EntryProperties
 
+
 class FileSchemeFileHandler(AbstractSchemeHandler):
     @staticmethod
     def _get_local_path(uri: str, filename: Optional[str] = None) -> Path:
         parsed_uri = urlparse(uri)
-        if filename != None:
+        if filename is not None:
             return Path(os.path.join(parsed_uri.netloc + parsed_uri.path, filename))
         elif parsed_uri.path != "":
             return Path(os.path.join(parsed_uri.netloc + parsed_uri.path))
@@ -26,12 +26,12 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
     @staticmethod
     def download_file(uri: str, temporary_directory: Optional[Path], file: Optional[str] = None) -> FileHandle:
         return FileHandle(FileSchemeFileHandler._get_local_path(uri, file), False)
-    
+
     @staticmethod
     def _list_files_impl(uri: str, regex: Optional[str] = None, recursive: bool = False) -> Generator[EntryProperties, None, None]:
         """
         Internal implementation for listing files in local filesystem.
-        
+
         Args:
             uri: File URI to list files from
             regex: Optional regex pattern to filter files
@@ -48,11 +48,11 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
                     full_path = os.path.join(root, dir_name)
                     relative_path = os.path.relpath(full_path, path)
                     stat_info = os.stat(full_path)
-                    
+
                     if regex is not None:
                         if not re.match(regex, full_path):
                             continue
-                    
+
                     entry = EntryProperties(
                         name=dir_name,
                         full_uri="file://" + full_path,
@@ -62,17 +62,17 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
                         last_modified=datetime.fromtimestamp(stat_info.st_mtime),
                     )
                     yield entry
-                
+
                 # Then yield files
                 for file in files:
                     full_path = os.path.join(root, file)
                     relative_path = os.path.relpath(full_path, path)
                     stat_info = os.stat(full_path)
-                    
+
                     if regex is not None:
                         if not re.match(regex, full_path):
                             continue
-                    
+
                     entry = EntryProperties(
                         name=file,
                         full_uri="file://" + full_path,
@@ -87,11 +87,11 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
                 full_path = os.path.join(path, entry_name)
                 stat_info = os.stat(full_path)
                 is_file = os.path.isfile(full_path)
-                
+
                 if regex is not None:
                     if not re.match(regex, full_path):
                         continue
-                
+
                 entry_props = EntryProperties(
                     name=entry_name,
                     full_uri="file://" + full_path,
@@ -101,7 +101,7 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
                     last_modified=datetime.fromtimestamp(stat_info.st_mtime),
                 )
                 yield entry_props
-    
+
     @staticmethod
     def list_entries_shallow(uri: str, regex: Optional[str] = None) -> Generator[EntryProperties]:
         """List files in the current directory (shallow listing)."""
@@ -139,24 +139,24 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
     def navigate(uri: str, path: str) -> str:
         # Get the current base path from the URI
         current_path = FileSchemeFileHandler._get_local_path(uri)
-        
+
         # Handle empty path case - return base path without trailing slash
         if not path:
             return "file://" + str(current_path)
-        
+
         # Strip leading slash to ensure relative path behavior
         if path.startswith('/'):
             path = path.lstrip('/')
-        
+
         # Join with the relative path
         new_path = os.path.join(current_path, path)
         return "file://" + str(new_path)
-    
+
     @staticmethod
     def file_exists(uri: str) -> bool:
         path = FileSchemeFileHandler._get_local_path(uri)
         return os.path.isfile(path)
-    
+
     @staticmethod
     def upload_folder(folder: Path, uri: str, recursive: bool = True, consumer_count: int = multiprocessing.cpu_count(), queue_size: int = 128) -> None:
         destination = FileSchemeFileHandler._get_local_path(uri)

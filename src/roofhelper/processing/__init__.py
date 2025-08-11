@@ -5,13 +5,16 @@ from typing import Generator, Iterable, List, TypeVar
 
 T = TypeVar('T')  # Generic type variable
 
+
 def chunked(iterable: Iterable[T], size: int) -> Generator[list[T], None, None]:
     """Yield successive chunks (as lists) from an iterable."""
     iterator = iter(iterable)
     while chunk := list(islice(iterator, size)):
         yield chunk
 
+
 log = logging.getLogger()
+
 
 def run_with_retries(
     cmd: List[str],

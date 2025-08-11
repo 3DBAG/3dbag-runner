@@ -4,6 +4,7 @@ from typing import Optional
 import fiona
 from shapely.geometry import mapping, box
 
+
 def extract_coordinates_from_filename(filename: str) -> Optional[tuple[int, int]]:
     """
     Extracts X and Y coordinates from filename.
@@ -14,6 +15,7 @@ def extract_coordinates_from_filename(filename: str) -> Optional[tuple[int, int]
         return None
     x, y = int(match.group(1)), int(match.group(2))
     return x, y
+
 
 def create_gpkg_with_rectangles(filenames: list[str], output_gpkg_path: str) -> None:
     schema = {
@@ -37,6 +39,7 @@ def create_gpkg_with_rectangles(filenames: list[str], output_gpkg_path: str) -> 
                 })
             else:
                 print(f"Skipped invalid filename: {filename}")
+
 
 # Example usage
 if __name__ == "__main__":

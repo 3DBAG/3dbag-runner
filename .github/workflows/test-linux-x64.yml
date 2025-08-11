@@ -1,0 +1,53 @@
+name: Test and lint on Linux
+
+on: 
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install system dependencies
+        run: |
+          export DEBIAN_FRONTEND=noninteractive
+          if command -v sudo >/dev/null 2>&1; then
+            sudo apt-get update
+            sudo apt-get install -y --no-install-recommends gdal-bin libgdal-dev build-essential
+          else
+            apt-get update
+            apt-get install -y --no-install-recommends gdal-bin libgdal-dev build-essential
+          fi
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Run linters
+        run: |
+          uv run flake8 ./src
+          uv run mypy ./src
+
+      # - name: Install and start Azurite emulator
+      #   run: |
+      #     npm install -g azurite
+      #     azurite --silent --location __azurite_db__ --debug __azurite_db__/debug.log &
+      #     sleep 5
+      #     # Verify Azurite is running
+      #     curl -f http://127.0.0.1:10000/devstoreaccount1 || echo "Azurite health check failed, but continuing..."
+
+      # - name: Run tests
+      #   run: |
+      #     cd src
+      #     uv run pytest ../tests
+
+        

@@ -1,7 +1,8 @@
 from hera.workflows import DAG, WorkflowTemplate, Parameter, Script
 from argo.argodefaults import default_worker
 
-@default_worker() 
+
+@default_worker()
 def workerfunc(input: str) -> None:
     import json
     import logging
@@ -9,7 +10,6 @@ def workerfunc(input: str) -> None:
     from pathlib import Path
     from roofhelper.io import SchemeFileHandler
     from concurrent.futures import ThreadPoolExecutor, as_completed
-
 
     from roofhelper.defautlogging import setup_logging
 
@@ -50,32 +50,39 @@ def workerfunc(input: str) -> None:
                 log.info(f"{name} {obj_id}: missing attributes: {', '.join(missing)}")
 
     handler = SchemeFileHandler(Path("/workflow"))
-    def _worker(name: str, uri: str) -> None: 
+
+    def _worker(name: str, uri: str) -> None:
         city_json = handler.get_bytes(uri).decode()
         log.info(f"Validate {uri}")
         data = json.loads(city_json)
-    
+
         # Sanitize elevations
         check_file(data, name)
 
-    files =  (entry for entry in handler.list_entries_shallow(input, regex="(?i)^.*city\\.json$") if entry.is_file)
+    files = (entry for entry in handler.list_entries_shallow(input, regex="(?i)^.*city\\.json$") if entry.is_file)
     with ThreadPoolExecutor(max_workers=32) as pool:
         futures = [pool.submit(_worker, entry.name, entry.full_uri) for entry in files]
 
         for future in as_completed(futures):
             future.result()
 
-with WorkflowTemplate(name="validatecityjson",
-                      generate_name="validatecityjson-",       
-                      entrypoint="maindag", 
-                      namespace="argo",
-                      service_account_name="workflow-runner",
-                      image_pull_secrets="acrdddprodman",
-                      arguments=[
-                          Parameter(name="input", default="azure://<sas>")
-                      ]) as w:
-    with DAG(name="maindag"):
-        worker: Script = workerfunc(arguments={"input": w.get_parameter("input")})# type: ignore
 
-    with open("generated/validatecityjson.yaml", "w") as f:
-        w.to_yaml(f)
+def generate_workflow() -> None:
+    with WorkflowTemplate(name="validatecityjson",
+                          generate_name="validatecityjson-",
+                          entrypoint="maindag",
+                          namespace="argo",
+                          service_account_name="workflow-runner",
+                          image_pull_secrets="acrdddprodman",
+                          arguments=[
+                              Parameter(name="input", default="azure://<sas>")
+                          ]) as w:
+        with DAG(name="maindag"):
+            worker: Script = workerfunc(arguments={"input": w.get_parameter("input")})  # type: ignore   # noqa: F841
+
+        with open("generated/validatecityjson.yaml", "w") as f:
+            w.to_yaml(f)
+
+
+if __name__ == "__main__":
+    generate_workflow()

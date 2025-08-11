@@ -1,7 +1,6 @@
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
 import json
-import math
 import os
 from pathlib import Path
 import subprocess
@@ -9,9 +8,9 @@ import logging
 from typing import Any, Optional
 
 from roofhelper.io import SchemeFileHandler
-from roofhelper.io.EntryProperties import EntryProperties
 
 log = logging.getLogger()
+
 
 def infer_type(val: Any) -> str:
     """
@@ -30,6 +29,7 @@ def infer_type(val: Any) -> str:
     # fallback for lists/objects
     return 'string'
 
+
 def extract_schema(data: dict[Any, Any]) -> str:
     schema = {}
     city_objects = data.get('CityObjects', {})
@@ -43,6 +43,8 @@ def extract_schema(data: dict[Any, Any]) -> str:
     return ','.join(f"{k}:{t}" for k, t in schema.items())
 
 # Make these functions auto detect the object types
+
+
 def cityjsonbuilding_to_glb(features_path: Path, metadata_path: Path, output_path: Path, attribute_mapping: Optional[str] = None) -> None:
     """
     Executes the `tyler` command to convert CityJSON data with fixed parameters,
@@ -53,10 +55,10 @@ def cityjsonbuilding_to_glb(features_path: Path, metadata_path: Path, output_pat
         "--metadata", str(metadata_path),
         "--features", str(features_path),
         "--output", str(output_path),
-        #"--3dtiles-implicit",
-        "--object-type", "Building", 
+        # "--3dtiles-implicit",
+        "--object-type", "Building",
         "--object-type", "BuildingPart",
-        #"--object-attribute", "objectid:int,bouwjaar:int,bagpandid:string",
+        # "--object-attribute", "objectid:int,bouwjaar:int,bagpandid:string",
         "--3dtiles-metadata-class", "building",
         '--grid-minz=-20',
         '--grid-maxz=300',
@@ -86,14 +88,14 @@ def cityjsonterrain_to_glb(features_path: Path, metadata_path: Path, output_path
         "--metadata", str(metadata_path),
         "--features", str(features_path),
         "--output", str(output_path),
-        #"--3dtiles-implicit",
+        # "--3dtiles-implicit",
         "--object-type", "LandUse",
         "--object-type", "PlantCover",
         "--object-type", "WaterBody",
         "--object-type", "Road",
         "--object-type", "GenericCityObject",
         "--object-type", "Bridge",
-        #"--object-attribute", "objectid:int,bronhouder:string,bgt_fysiekvoorkomen:string,bgt_type:string",
+        # "--object-attribute", "objectid:int,bronhouder:string,bgt_fysiekvoorkomen:string,bgt_type:string",
         "--3dtiles-metadata-class", "terrain",
         "--grid-minz=-15",
         "--grid-maxz=400",
@@ -126,11 +128,12 @@ def cityjsonterrain_to_glb(features_path: Path, metadata_path: Path, output_path
     except subprocess.CalledProcessError as e:
         print("Error occurred while executing tyler terrain command:", e)
 
+
 def copy_attributes_to_building_parts(cityjson_data: dict[Any, Any]) -> dict[Any, Any]:
     """Copy attributes from parent Building to its BuildingParts."""
     # Get the main objects
     city_objects = cityjson_data.get('CityObjects', {})
-    
+
     # Keep track of processed buildings
     for obj_id, obj_data in city_objects.items():
         if obj_data.get('type') == 'Building':
@@ -138,7 +141,7 @@ def copy_attributes_to_building_parts(cityjson_data: dict[Any, Any]) -> dict[Any
             parent_attributes = obj_data.get('attributes', {})
             # Get children (BuildingParts)
             children_ids = obj_data.get('children', [])
-            
+
             # Copy attributes to each child
             for child_id in children_ids:
                 if child_id in city_objects:
@@ -149,8 +152,9 @@ def copy_attributes_to_building_parts(cityjson_data: dict[Any, Any]) -> dict[Any
                             child_obj['attributes'] = {}
                         # Update child attributes with parent attributes
                         child_obj['attributes'].update(parent_attributes)
-    
+
     return cityjson_data
+
 
 def translate_cityjson(data: dict[Any, Any]) -> dict[Any, Any]:
     translate_base_x = 171800.0
@@ -185,21 +189,21 @@ def translate_cityjson(data: dict[Any, Any]) -> dict[Any, Any]:
     return data
 
 
-def prepare_files(input_folder: str, output_folder: Path) -> Optional[str]: #This function does too much, split it
+def prepare_files(input_folder: str, output_folder: Path) -> Optional[str]:  # This function does too much, split it
     log.info("Start fixing and splitting cityjson files")
 
     os.makedirs(output_folder, exist_ok=True)
     handler = SchemeFileHandler()
 
     schema = None
-    
+
     def _consumer(uri: str, destination: Path) -> None:
         os.makedirs(destination, exist_ok=True)
         cityjson_content = handler.get_bytes(uri).decode()
-        
+
         cityjson_read = translate_cityjson(json.loads(cityjson_content))
         cityjson_converted = json.dumps(cityjson_read) + "\n"
-            
+
         result = subprocess.run(["cjseq", "cat"], input=cityjson_converted, capture_output=True, text=True, check=True)
         output = result.stdout
 
@@ -217,7 +221,7 @@ def prepare_files(input_folder: str, output_folder: Path) -> Optional[str]: #Thi
             features = [executor.submit(_writer, x) for x in output.split("\n") if x]
             for feature in as_completed(features):
                 feature.result()
-            
+
             log.info(f"Written {uri} to {destination}, it contained {len(features)} items")
 
     with ThreadPoolExecutor(max_workers=32) as executor:
@@ -225,7 +229,7 @@ def prepare_files(input_folder: str, output_folder: Path) -> Optional[str]: #Thi
         for entry in handler.list_entries_shallow(input_folder, regex="(i?)^.*\\.city\\.json$"):
             if not entry.is_file:
                 continue
-            if schema == None:
+            if schema is None:
                 cityjson_content = json.loads(handler.get_bytes(entry.full_uri).decode())
                 schema = extract_schema(cityjson_content)
 
@@ -233,10 +237,10 @@ def prepare_files(input_folder: str, output_folder: Path) -> Optional[str]: #Thi
             destination = Path(os.path.join(output_folder, filename_without_extension))
             tasks.append(executor.submit(partial(_consumer, uri=entry.full_uri, destination=destination)))
 
-        if len(tasks) == 0: 
+        if len(tasks) == 0:
             log.error("Could not find any city.json files, aborting")
             raise Exception("Could not find any city.json files, aborting")
-    
+
         log.info("Done submitting all cityjson files")
 
         # Use tqdm to add a progress bar
@@ -245,4 +249,3 @@ def prepare_files(input_folder: str, output_folder: Path) -> Optional[str]: #Thi
 
     log.info("Done fixing and splitting cityjson files")
     return schema
-        

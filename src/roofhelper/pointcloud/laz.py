@@ -1,4 +1,3 @@
-from collections import defaultdict
 import math
 import os
 from pathlib import Path
@@ -6,6 +5,7 @@ import numpy as np
 import laspy
 from laspy import LasHeader
 from shapely import Polygon
+
 
 def extent_to_polygon(header: LasHeader) -> Polygon:
     # header.mins and header.maxs are already scaled and offset by laspy
@@ -20,6 +20,7 @@ def extent_to_polygon(header: LasHeader) -> Polygon:
         (max_x, min_y),
         (min_x, min_y)
     ])
+
 
 def laz_tile_split(input_laz: Path, output_dir: Path, grid_size: float) -> list[str]:
     os.makedirs(output_dir, exist_ok=True)
@@ -37,12 +38,12 @@ def laz_tile_split(input_laz: Path, output_dir: Path, grid_size: float) -> list[
         generated_tiles = {}
 
         estimated_point_size = 40 + 10  # point + overhead
-        max_memory_bytes = 1 * 1024 * 1024 * 1024 #1GB
+        max_memory_bytes = 1 * 1024 * 1024 * 1024  # 1GB
         chunk_size = int(max_memory_bytes / estimated_point_size)
 
         point_batches = pointcloud.chunk_iterator(chunk_size)
         for point_batch in point_batches:
-            tile_x_idx = ((point_batch.x - grid_origin_x) / grid_size).astype(np.int32) # the type cast from float to int wil cast as math.floor
+            tile_x_idx = ((point_batch.x - grid_origin_x) / grid_size).astype(np.int32)  # the type cast from float to int wil cast as math.floor
             tile_y_idx = ((point_batch.y - grid_origin_y) / grid_size).astype(np.int32)
 
             for tx in range(min_tile_x, max_tile_x):

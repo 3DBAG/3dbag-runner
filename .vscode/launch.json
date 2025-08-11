@@ -20,66 +20,10 @@
             "cwd": "${workspaceFolder}/src"
         },
         {
-            "name": "Python: Generate workflow roofer.py",
-            "type": "debugpy",
+            "name": "Python: Generate all Argo workflows",
+            "type": "debugpy", 
             "request": "launch",
-            "program": "${workspaceFolder}/src/argo/roofer.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow geluid.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/geluid.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow lazdb.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/lazdb.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow lazsplit.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/lazsplit.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow createbagdb.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/createbagdb.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow tyler.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/tyler.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow fixcityjson.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/fixcityjson.py",
-            "python": "${workspaceFolder}/.venv/bin/python",
-            "console": "integratedTerminal"
-        },
-        {
-            "name": "Python: Generate workflow validatecityjson.py",
-            "type": "debugpy",
-            "request": "launch",
-            "program": "${workspaceFolder}/src/argo/validatecityjson.py",
+            "program": "${workspaceFolder}/src/argo.py",
             "python": "${workspaceFolder}/.venv/bin/python",
             "console": "integratedTerminal"
         },

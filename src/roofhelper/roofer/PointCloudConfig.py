@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import List, Optional
 
+
 @dataclass
 class PointcloudConfig:
     """Configuration for a single pointcloud source."""
@@ -15,10 +16,10 @@ class PointcloudConfig:
     # Year of point cloud collection
     date: Optional[int] = None
 
-    #Priority of the point cloud
+    # Priority of the point cloud
     quality: Optional[int] = None
 
-    #Only select this source for a certain date
+    # Only select this source for a certain date
     select_only_for_date: Optional[bool] = None
 
     # force lod11 if this is the pointcloud source.

@@ -4,6 +4,7 @@ from typing import List, Optional
 from .PointCloudConfig import PointcloudConfig
 from .OutputAttributesConfig import OutputAttributesConfig
 
+
 @dataclass
 class RooferConfig:
     """Main configuration dataclass for the roofer process."""
@@ -16,15 +17,15 @@ class RooferConfig:
     # Output directory for results
     output_directory: str
     # List of pointcloud configurations
-    pointclouds: List[PointcloudConfig] # Corresponds to [[pointclouds]]
+    pointclouds: List[PointcloudConfig]  # Corresponds to [[pointclouds]]
 
     # Load this layer from <polygon-source> [default: first layer assumed if None]
-    polygon_source_layer: Optional[str] = None # TOML Example: "SomeLayer"
+    polygon_source_layer: Optional[str] = None  # TOML Example: "SomeLayer"
     # Building ID attribute
-    id_attribute: str = "id_attribute" 
+    id_attribute: str = "id_attribute"
     # Boolean building attribute for forcing LoD 1.1 (simple roofprint extrustion)
     # and skipping reconstruction in a higher LoD for this building.
-    force_lod11_attribute: Optional[str] = None # TOML Example: "SomeAttribute"
+    force_lod11_attribute: Optional[str] = None  # TOML Example: "SomeAttribute"
     # Specify WHERE clause in OGR SQL to select specfic features from <polygon-source>
     # filter: Optional[str] = None # TOML Example: "id_attribute='SomeID'"
 
@@ -38,17 +39,17 @@ class RooferConfig:
     # Override SRS for both inputs and outputs
     srs: Optional[str] = "EPSG:7415"
 
-    ## LAS classification code that contains the building points.
+    # LAS classification code that contains the building points.
     bld_class: Optional[int] = 6
 
-    ## LAS classification code that contains the ground points.
+    # LAS classification code that contains the ground points.
     grnd_class: Optional[int] = 2
 
     # Region of interest. Data outside of this region will be ignored.
     # Format: [x_min, y_min, x_max, y_max].
-    box: Optional[List[float]] = None # TOML Example: [0.0, 0.0, 1000.0, 1000.0] needs float
+    box: Optional[List[float]] = None  # TOML Example: [0.0, 0.0, 1000.0, 1000.0] needs float
     # Enfore this point density ceiling on each building pointcloud.
-    # ceil_point_density: Optional[float] = None # TOML Example: 20 
+    # ceil_point_density: Optional[float] = None # TOML Example: 20
     # Tilesize used for output tiles. Format: [size_x, size_y].
     # tilesize: List[int] = field(default_factory=lambda: [1000, 1000]) # Default based on example
     # Cellsize used for quick pointcloud analysis
@@ -70,8 +71,8 @@ class RooferConfig:
     # Output CityJSONSequence file for each building [default: one file per output tile]
     # split_cjseq: bool = False # Default is False based on comment
     # Omit metadata from output CityJSON
-    #omit_metadata: bool = False # TOML shows 'true', assuming False is default
-    
+    # omit_metadata: bool = False # TOML shows 'true', assuming False is default
+
     # cj_tranlate and cj_scale are important for tyler to function, make this a required option when running roofer
     cj_translate: Optional[List[float]] = field(default_factory=lambda: [171800.0, 472700.0, 0.0])
     cj_scale: Optional[List[float]] = field(default_factory=lambda: [0.001, 0.001, 0.001])

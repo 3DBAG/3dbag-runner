@@ -2,7 +2,9 @@ from hera.workflows import Artifact, DAG, WorkflowTemplate, Script, Parameter
 from argo.argodefaults import argo_worker, MEMORY_EMPTY_DIR
 
 # Create a list to store the futures
-@argo_worker(outputs=Artifact(name="queue", path="/workflow/queue.json"), volumes=MEMORY_EMPTY_DIR) 
+
+
+@argo_worker(outputs=Artifact(name="queue", path="/workflow/queue.json"), volumes=MEMORY_EMPTY_DIR)
 def queuefunc(workercount: int, source: str) -> None:
     import logging
     import json
@@ -29,7 +31,7 @@ def queuefunc(workercount: int, source: str) -> None:
     def region_key(x: int, y: int, region_tiles: int = 10) -> tuple[int, int]:
         region_size_m = region_tiles * TILE_SIZE
         return x // region_size_m, y // region_size_m
-    
+
     buckets: dict[tuple[int, int], list[str]] = defaultdict(list)
     for entry in file_handler.list_entries_shallow(uri=source, regex="(i?)^.*\\.city\\.json$"):
         if not entry.is_file:
@@ -54,7 +56,9 @@ def queuefunc(workercount: int, source: str) -> None:
     json.dump([i for i in range(workercount)], sys.stdout)
 
 # Create a list to store the futures
-@argo_worker(inputs=Artifact(name="queue", path="/workflow/queue.json"))# type: ignore
+
+
+@argo_worker(inputs=Artifact(name="queue", path="/workflow/queue.json"))  # type: ignore
 def workerfunc(workerid: int, mode: str, intermediate: str) -> None:
     import logging
     import json
@@ -81,9 +85,10 @@ def workerfunc(workerid: int, mode: str, intermediate: str) -> None:
     logger.info(f"Worker has to process {len(local_queue)} items of the queue")
 
     handler = SchemeFileHandler(Path("/workflow/handler"))
-    def _prepare_files(index: int, partition: list[str]) -> None: 
+
+    def _prepare_files(index: int, partition: list[str]) -> None:
         logger.info(f"Downloading [{index}/{len(local_queue)}].")
-        
+
         partition_directory = f"/workflow/partitions/{index}"
         os.makedirs(partition_directory, exist_ok=True)
         for tileidx, tile in enumerate(partition):
@@ -95,7 +100,7 @@ def workerfunc(workerid: int, mode: str, intermediate: str) -> None:
         tyler_output_directory = f"/workflow/output/{index}"
 
         tyler_runner(f"file://{folder}", f"file://{tyler_output_directory}", Path(f"/workflow/tempdir/{index}"), mode, Path("/metadata.city.json"))
-        
+
         zip_name = f"/workflow/zips/{workerid}_{index}.zip"
         zip.zip_dir(Path(tyler_output_directory), Path(zip_name))
         handler.upload_file_directory(Path(zip_name), intermediate)
@@ -106,7 +111,7 @@ def workerfunc(workerid: int, mode: str, intermediate: str) -> None:
         futures = [executor.submit(_prepare_files, idx, work) for idx, work in enumerate(local_queue)]
         for future in futures:
             future.result()
-    
+
     os.makedirs("/workflow/zips")
     with ThreadPoolExecutor(max_workers=4) as executor:
         folders = [f for f in glob.glob("/workflow/partitions/*") if os.path.isdir(f)]
@@ -114,7 +119,8 @@ def workerfunc(workerid: int, mode: str, intermediate: str) -> None:
         for future in futures:
             future.result()
 
-@argo_worker() 
+
+@argo_worker()
 def mergerfunc(intermediate: str, destination: str) -> None:
     import logging
     import subprocess
@@ -129,7 +135,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     log.info("Merging all results")
 
     handler = SchemeFileHandler(Path("/workflow/downloads"))
-    
+
     zipfile_list = (entry for entry in handler.list_entries_shallow(uri=intermediate, regex="(i?)^.*\\.zip$") if entry.is_file)
     for zipfile_index, entry in enumerate(zipfile_list):
         log.info(f"Downloading and unzipping {entry.name}")
@@ -154,30 +160,35 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     handler.upload_folder(Path("/workflow/merge"), destination)
     log.info("Done merging all results")
 
-with WorkflowTemplate(name="tyler",
-                      generate_name="tyler-",       
-                      entrypoint="tylerdag", 
-                      namespace="argo",
-                      service_account_name="workflow-runner",
-                      image_pull_secrets="acrdddprodman",
-                      arguments=[Parameter(name="source", default="azure://<sas>"),
-                                 Parameter(name="intermediate", default="azure://<sas>"),
-                                 Parameter(name="destination", default="azure://<sas>"),
-                                 Parameter(name="mode", default="buildings", enum=["buildings", "terrain"]),
-                                 Parameter(name="workercount", default="5")]) as w:
-    with DAG(name="tylerdag"):
-        queue: Script = queuefunc(arguments={ # type: ignore
-                                   "workercount": w.get_parameter("workercount"),
-                                   "source": w.get_parameter("source")})  # type: ignore
 
-        worker: Script = workerfunc(with_param=queue.result, # type: ignore
-                            arguments=[queue.get_artifact("queue").with_name("queue"), {"workerid": "{{item}}", # type: ignore
-                                      "mode": w.get_parameter("mode"),
-                                      "intermediate": w.get_parameter("intermediate")}]) # type: ignore
-        merger: Script = mergerfunc(arguments={"intermediate": w.get_parameter("intermediate"), # type: ignore
-                                       "destination": w.get_parameter("destination")}) # type: ignore
-        queue >> worker >> merger # type: ignore          
-        
+def generate_workflow() -> None:
+    with WorkflowTemplate(name="tyler",
+                          generate_name="tyler-",
+                          entrypoint="tylerdag",
+                          namespace="argo",
+                          service_account_name="workflow-runner",
+                          image_pull_secrets="acrdddprodman",
+                          arguments=[Parameter(name="source", default="azure://<sas>"),
+                                     Parameter(name="intermediate", default="azure://<sas>"),
+                                     Parameter(name="destination", default="azure://<sas>"),
+                                     Parameter(name="mode", default="buildings", enum=["buildings", "terrain"]),
+                                     Parameter(name="workercount", default="5")]) as w:
+        with DAG(name="tylerdag"):
+            queue: Script = queuefunc(arguments={  # type: ignore
+                "workercount": w.get_parameter("workercount"),
+                "source": w.get_parameter("source")})  # type: ignore
 
-    with open("generated/tyler.yaml", "w") as f:
-        w.to_yaml(f)
+            worker: Script = workerfunc(with_param=queue.result,  # type: ignore
+                                        arguments=[queue.get_artifact("queue").with_name("queue"), {"workerid": "{{item}}",  # type: ignore
+                                                                                                    "mode": w.get_parameter("mode"),
+                                                                                                    "intermediate": w.get_parameter("intermediate")}])  # type: ignore
+            merger: Script = mergerfunc(arguments={"intermediate": w.get_parameter("intermediate"),  # type: ignore
+                                        "destination": w.get_parameter("destination")})  # type: ignore
+            queue >> worker >> merger  # type: ignore
+
+        with open("generated/tyler.yaml", "w") as f:
+            w.to_yaml(f)
+
+
+if __name__ == "__main__":
+    generate_workflow()

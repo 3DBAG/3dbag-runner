@@ -5,22 +5,23 @@ from roofhelper.pdok.UploadResult import UploadResult
 
 log = setup_logging()
 
+
 class PdokS3Uploader:
     """Handles S3 file uploads for PDOK delivery, we might have to add s3 as file handler later."""
-    
+
     def __init__(self, endpoint: str, access_key: str, secret_key: str):
         self.endpoint = endpoint
         self.access_key = access_key
         self.secret_key = secret_key
         self._s3_client = None
-    
+
     from botocore.client import BaseClient
 
     @property
     def s3_client(self) -> "BaseClient":
         """Lazy initialization of S3 client."""
         if self._s3_client is None:
-            session = boto3.session.Session() # type: ignore[call-arg]
+            session = boto3.session.Session()  # type: ignore[call-arg]
             self._s3_client = session.client(
                 service_name='s3',
                 aws_access_key_id=self.access_key,

@@ -1,5 +1,4 @@
 # Currently not https://datatracker.ietf.org/doc/html/rfc3986/ compliant, should improve on it later.
-from io import BytesIO
 import os
 from pathlib import Path
 import tempfile
@@ -48,7 +47,7 @@ class SchemeFileHandler:
         parsed_uri = urlparse(uri)
         self.scheme_handlers[parsed_uri.scheme].upload_stream_direct(stream, uri)
 
-    def upload_bytes_directory(self, stream: BinaryIO, uri: str, filename: str) -> None: 
+    def upload_bytes_directory(self, stream: BinaryIO, uri: str, filename: str) -> None:
         parsed_uri = urlparse(uri)
         self.scheme_handlers[parsed_uri.scheme].upload_stream_directory(stream, uri, filename)
 
@@ -74,11 +73,11 @@ class SchemeFileHandler:
     def create_file(self, suffix: Optional[str] = None, text: Optional[str] = None) -> Path:
         """
         Create a temporary file with optional text content.
-        
+
         Args:
             suffix: Optional file suffix (e.g., '.gpkg', '.txt')
             text: Optional text content to write to the file
-            
+
         Returns:
             Path to the created temporary file
         """
@@ -103,9 +102,9 @@ class SchemeFileHandler:
                 if handle.path.exists():
                     os.unlink(handle.path)
                     self.file_handles.remove(handle)
-    
+
     def navigate(self, uri: str, path: str) -> str:
-        """ 
+        """
         Navigating between specific destinations differs per URI, this function helps with uri navigation.
         Say you're in /home you can set path to "test.txt" and this function will return /home/test.txt
         Just a small reminder that this function does not support parent directory or other special operations.

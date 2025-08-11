@@ -1,5 +1,4 @@
 import os
-from pathlib import Path
 import re
 from typing import Optional
 import fiona
@@ -7,12 +6,14 @@ from shapely.geometry import mapping, box
 
 from roofhelper.io import SchemeFileHandler
 
+
 def extract_coordinates_from_filename(filename: str) -> Optional[tuple[int, int]]:
     match = re.search(r'buildings_2023_(\d+)_(\d+)\.city\.json$', filename)
     if not match:
         return None
     x, y = int(match.group(1)), int(match.group(2))
     return x, y
+
 
 def create_gpkg_with_rectangles(filenames: list[str], output_gpkg_path: str) -> None:
     schema = {
