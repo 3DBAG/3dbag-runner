@@ -8,7 +8,7 @@ dependencies = [
     "azure-storage-blob>=12.25.1",
     "fiona>=1.10.1",
     "flake8>=7.0.0",
-    "gdal==3.7.3",
+    "gdal==3.11.3",
     "geopandas>=1.0.1",
     "hera[yaml]>=5.20.1",
     "laspy[laszip,lazrs]>=2.5.4",
