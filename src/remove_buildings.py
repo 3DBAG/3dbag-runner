@@ -15,7 +15,6 @@ import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
-from pathlib import Path
 from typing import Any, Dict
 
 from roofhelper.defautlogging import setup_logging
@@ -47,7 +46,8 @@ def remove_buildings_from_cityjson(cityjson_data: Dict[str, Any]) -> Dict[str, A
 
     # First pass: identify buildings and collect their children
     for obj_id, obj_data in cityjson_data["CityObjects"].items():
-        if obj_data.get("type") == "Building":
+        type = obj_data["attributes"].get("3df_class")
+        if type == "Building":
             buildings_to_remove.add(obj_id)
             # Also collect children of buildings
             if "children" in obj_data:
@@ -149,11 +149,6 @@ def main() -> None:
         required=True,
         help="Destination Azure URI for modified files (e.g., azure://https://account.blob.core.windows.net/container/output?sas)"
     )
-    parser.add_argument(
-        "--dry_run",
-        action="store_true",
-        help="List files that would be processed without actually processing them"
-    )
 
     args = parser.parse_args()
 
@@ -169,13 +164,7 @@ def main() -> None:
             log.warning("No CityJSON files found")
             return
 
-        if args.dry_run:
-            log.info("DRY RUN - Files that would be processed:")
-            for file_path in cityjson_files:
-                log.info(f"  {file_path}")
-            return
-
-        log.info(f"Starting processing of {len(cityjson_files)} files with {args.max_workers} workers")
+        log.info(f"Starting processing of {len(cityjson_files)} files")
 
         # Process files in parallel
         successful = 0

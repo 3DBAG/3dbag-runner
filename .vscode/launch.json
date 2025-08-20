@@ -244,5 +244,17 @@
             ],
             "console": "integratedTerminal"
         },
+        {
+            "name": "Python: Debug remove_buildings",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/remove_buildings.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "--source", "azure://<sas>",
+                "--destination", "azure://<sas>",
+            ],
+            "console": "integratedTerminal"
+        },
     ]
 }
