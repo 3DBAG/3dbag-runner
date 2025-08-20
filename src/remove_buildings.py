@@ -46,7 +46,7 @@ def remove_buildings_from_cityjson(cityjson_data: Dict[str, Any]) -> Dict[str, A
 
     # First pass: identify buildings and collect their children
     for obj_id, obj_data in cityjson_data["CityObjects"].items():
-        type = obj_data["attributes"].get("3df_class")
+        type = obj_data.get("attributes", {}).get("3df_class")
         if type == "Building":
             buildings_to_remove.add(obj_id)
             # Also collect children of buildings
