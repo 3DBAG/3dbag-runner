@@ -33,14 +33,14 @@ class PdokUpdateTrigger:
             jwt_bearer: str = jwt.encode(payload, self.private_key_content, algorithm="RS256")
 
             # Data to send in the POST request
-            from_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT00:00:00Z")
-            to_time = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime("%Y-%m-%dT00:00:00Z")
+            # from_time = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            to_time = (datetime.now(timezone.utc) + timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
             data = {
                 "params": {
                     "key": upload_result.s3_upload_path,
                 },
                 "timeWindow": {
-                    "from": from_time,
+                    # "from": from_time,
                     "to": to_time,
                 }
             }
