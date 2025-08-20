@@ -11,7 +11,7 @@ from shapely.geometry import Polygon, mapping
 
 from ..io import SchemeFileHandler
 from ..io.EntryProperties import EntryProperties
-from ..defautlogging import setup_logging
+from ..defaultlogging import setup_logging
 
 log = setup_logging()
 

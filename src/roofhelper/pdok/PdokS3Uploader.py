@@ -3,7 +3,7 @@ from pathlib import Path
 import requests
 from requests_aws4auth import AWS4Auth
 
-from roofhelper.defautlogging import setup_logging
+from roofhelper.defaultlogging import setup_logging
 from roofhelper.pdok.UploadResult import UploadResult
 
 log = setup_logging()

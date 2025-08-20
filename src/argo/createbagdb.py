@@ -10,7 +10,7 @@ def workerfunc(destination: str, year: int) -> None:
     import os
     from pathlib import Path
     from main import createbagdb
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
 
     logger = setup_logging(logging.INFO)

@@ -3,7 +3,7 @@ import jwt
 import requests
 import base64
 
-from roofhelper.defautlogging import setup_logging
+from roofhelper.defaultlogging import setup_logging
 from roofhelper.pdok.UploadResult import UploadResult
 
 log = setup_logging()

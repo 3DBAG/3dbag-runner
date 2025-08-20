@@ -23,7 +23,7 @@ import laspy
 from shapely import box
 from tqdm import tqdm
 
-from roofhelper import defautlogging, processing, zip, tyler
+from roofhelper import defaultlogging, processing, zip, tyler
 from roofhelper.cityjson.geluid import (GELUID_SCHEMA, HOOGTE_SCHEMA,
                                         building_to_gpkg_dict,
                                         building_to_hoogte_gpkg_dict,
@@ -36,7 +36,7 @@ from roofhelper.pdok.PdokDeliveryProperties import create_pdok_index
 from roofhelper.pointcloud import laz
 from roofhelper.roofer import PointcloudConfig, roofer_config_generate
 
-log = defautlogging.setup_logging(logging.INFO)
+log = defaultlogging.setup_logging(logging.INFO)
 
 
 def createlazdb_operation(args: argparse.Namespace) -> None:

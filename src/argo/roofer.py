@@ -14,7 +14,7 @@ def queuefunc(workercount: int, footprints: str, cityjsonfolder: str, year: int)
 
     from roofhelper.kadaster.geo import grid_create_on_intersecting_centroid
     from roofhelper.io import SchemeFileHandler
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
     from pathlib import Path
 
     logger = setup_logging(logging.INFO)
@@ -52,7 +52,7 @@ def workerfunc(workerid: int, footprints: str, year: int, dsm: str, ahn4: str, a
     import logging
 
     from main import runsingleroofertile
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
 
     logger = setup_logging(logging.INFO)

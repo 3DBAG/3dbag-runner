@@ -13,7 +13,7 @@ def workerfunc(input: str, output: str) -> None:
     from roofhelper.io import SchemeFileHandler
     from concurrent.futures import ThreadPoolExecutor, as_completed
 
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
 
     log = setup_logging(logging.INFO)
 

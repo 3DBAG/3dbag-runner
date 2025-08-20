@@ -17,7 +17,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from io import BytesIO
 from typing import Any, Dict
 
-from roofhelper.defautlogging import setup_logging
+from roofhelper.defaultlogging import setup_logging
 from roofhelper.io import SchemeFileHandler, EntryProperties
 
 log = setup_logging(logging.INFO)
@@ -95,8 +95,7 @@ def process_cityjson_file(entry: EntryProperties, destination_base: str) -> bool
     Process a single CityJSON file: download, remove buildings, upload.
 
     Args:
-        file_path: Path to the CityJSON file
-        file_handler: SchemeFileHandler instance for I/O operations
+        entry: EntryProperties object representing the CityJSON file to process
         destination_base: Base destination URI
 
     Returns:

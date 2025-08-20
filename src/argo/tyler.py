@@ -13,7 +13,7 @@ def queuefunc(workercount: int, source: str) -> None:
     from collections import defaultdict
 
     from roofhelper.io import SchemeFileHandler
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
     from pathlib import Path
 
     logger = setup_logging(logging.INFO)
@@ -71,7 +71,7 @@ def workerfunc(workerid: int, mode: str, intermediate: str) -> None:
     from concurrent.futures import ThreadPoolExecutor
 
     from roofhelper import zip
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
 
     logger = setup_logging(logging.INFO)
@@ -127,7 +127,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     import glob
     from pathlib import Path
 
-    from roofhelper.defautlogging import setup_logging
+    from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
     from roofhelper import zip
 

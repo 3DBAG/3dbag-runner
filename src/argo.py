@@ -1,5 +1,5 @@
 
-from roofhelper.defautlogging import setup_logging
+from roofhelper.defaultlogging import setup_logging
 
 log = setup_logging()
 
