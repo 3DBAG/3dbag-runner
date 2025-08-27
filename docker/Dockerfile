@@ -1,4 +1,4 @@
-FROM 3dgi/geoflow-bundle-builder:2025.08.07 AS builder
+FROM 3dgi/geoflow-bundle-builder:2025.08.15 AS builder
 
 # Download Dutch transformation grids
 RUN wget https://cdn.proj.org/nl_nsgi_nlgeo2018.tif -O /usr/local/share/proj/nl_nsgi_nlgeo2018.tif && \
