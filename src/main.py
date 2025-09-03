@@ -32,7 +32,8 @@ from roofhelper.io import SchemeFileHandler, download_if_not_exists
 from roofhelper.kadaster import bag
 from roofhelper.kadaster.geo import grid_create_on_intersecting_centroid
 from roofhelper.pdok import PdokS3Uploader, PdokUpdateTrigger, UploadResult
-from roofhelper.pdok.PdokDeliveryProperties import create_pdok_index
+from roofhelper.pdok.PdokDeliverySound import PDOK_DELIVERY_SCHEMA_SOUND, get_pdok_sound_features
+from roofhelper.pdok.PdokGeopackageWriter import write_features_to_geopackage
 from roofhelper.pointcloud import laz
 from roofhelper.roofer import PointcloudConfig, roofer_config_generate
 
@@ -532,7 +533,9 @@ def trigger_pdok_update(source: str,
 
 
 def create_pdok_index_operation(args: argparse.Namespace) -> None:
-    create_pdok_index(args.source, args.ahn_source, args.destination, args.url_prefix, args.temporary_directory)
+
+    features = get_pdok_sound_features(args.source, args.ahn_source, args.url_prefix)
+    write_features_to_geopackage(PDOK_DELIVERY_SCHEMA_SOUND, features, args.destination, args.temporary_directory)
 
 
 def splitgpkg_operation(args: argparse.Namespace) -> None:

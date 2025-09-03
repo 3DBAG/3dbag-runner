@@ -1,8 +1,8 @@
 from hera.workflows import DAG, WorkflowTemplate, Parameter, Artifact, Script
-from argo.argodefaults import default_worker
+from argo.argodefaults import argo_worker
 
 
-@default_worker(outputs=Artifact(name="queue", path="/workflow/queue.json"))
+@argo_worker(outputs=Artifact(name="queue", path="/workflow/queue.json"))
 def workerfunc(source: str, destination: str, gridsize: int) -> None:
     from main import pointcloudsplit
     from pathlib import Path

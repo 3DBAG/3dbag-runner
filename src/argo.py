@@ -11,6 +11,7 @@ if __name__ == "__main__":
     from argo import lazdb
     from argo import lazsplit
     from argo import pdokupdategeluid
+    from argo import pdokupdatebuildings
     from argo import roofer
     from argo import tyler
     from argo import validatecityjson
@@ -46,5 +47,8 @@ if __name__ == "__main__":
 
     log.info("Generating validatecityjson workflow...")
     validatecityjson.generate_workflow()
+
+    log.info("Generating pdokupdatebuildings workflow..")
+    pdokupdatebuildings.generate_workflow()
 
     log.info("Finished generating Argo workflows.")

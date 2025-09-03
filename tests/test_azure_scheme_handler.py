@@ -18,15 +18,12 @@ import requests
 from pathlib import Path
 from datetime import datetime, timedelta, UTC
 from io import BytesIO
-from typing import List, Generator, Optional
 
-from azure.storage.blob import BlobServiceClient, ContainerClient, BlobClient
+from azure.storage.blob import BlobServiceClient
 from azure.storage.blob import generate_container_sas, ContainerSasPermissions
 from azure.core.exceptions import ResourceNotFoundError
-import re
 
 from roofhelper.io.AzureSchemeFileHandler import AzureSchemeFileHandler
-from roofhelper.io.EntryProperties import EntryProperties
 from roofhelper.io.FileHandle import FileHandle
 
 
@@ -35,13 +32,13 @@ def is_azurite_running() -> bool:
     try:
         response = requests.get("http://127.0.0.1:10000/devstoreaccount1", timeout=2)
         return response.status_code in [200, 400, 404]  # Any response means it's running
-    except:
+    except BaseException:
         return False
 
 
 def parse_connection_string(connection_string: str) -> tuple[str, str, str]:
     """Parse Azure connection string to extract account name, key, and endpoint suffix.
-    
+
     Returns:
         tuple: (account_name, account_key, endpoint_suffix)
     """
@@ -51,11 +48,11 @@ def parse_connection_string(connection_string: str) -> tuple[str, str, str]:
         if '=' in part:
             key, value = part.split('=', 1)
             parts[key] = value
-    
+
     account_name = parts.get('AccountName', '')
     account_key = parts.get('AccountKey', '')
     endpoint_suffix = parts.get('EndpointSuffix', 'core.windows.net')
-    
+
     return account_name, account_key, endpoint_suffix
 
 
@@ -66,18 +63,18 @@ def generate_sas_token_from_connection_string(
     expiry: datetime
 ) -> str:
     """Generate SAS token using connection string - compatible with both Azurite and real Azure accounts.
-    
+
     Args:
         connection_string: Azure Storage connection string
         container_name: Name of the container
         permissions: SAS permissions
         expiry: SAS token expiry time
-        
+
     Returns:
         SAS token string
     """
     account_name, account_key, _ = parse_connection_string(connection_string)
-    
+
     return generate_container_sas(
         account_name=account_name,
         container_name=container_name,
@@ -96,7 +93,7 @@ def azurite_check() -> None:
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
     )
     account_name, _, _ = parse_connection_string(connection_string)
-    
+
     # Only check if Azurite is running when using Azurite connection string
     if account_name == "devstoreaccount1" and not is_azurite_running():
         pytest.skip(
@@ -109,20 +106,20 @@ def azurite_check() -> None:
 @pytest.mark.azure
 class TestAzureSchemeFileHandler:
     """Test cases for AzureSchemeFileHandler class.
-    
+
     Supports both Azurite emulator and real Azure Storage accounts.
     Configuration is controlled via connection string:
-    
+
     For real Azure Storage:
         Set AZURE_STORAGE_CONNECTION_STRING environment variable with your storage account connection string
-        
+
     For Azurite (local development):
         Set AZURE_STORAGE_CONNECTION_STRING to:
         "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
-        
+
     Default is configured for a real Azure Storage account.
     """
-    
+
     # Set to Azurite for local development
     CONNECTION_STRING = os.getenv(
         'AZURE_STORAGE_CONNECTION_STRING',
@@ -135,39 +132,38 @@ class TestAzureSchemeFileHandler:
         account_name, _, _ = parse_connection_string(cls.CONNECTION_STRING)
         return account_name == "devstoreaccount1"
 
-    @classmethod 
+    @classmethod
     def _get_blob_endpoint(cls) -> str:
         """Get the appropriate blob endpoint based on connection string."""
         account_name, _, endpoint_suffix = parse_connection_string(cls.CONNECTION_STRING)
-        
+
         if cls._is_using_azurite():
             # Use Azurite local endpoint
             return f"http://127.0.0.1:10000/{account_name}"
         else:
             # Use Azure endpoint
             return f"https://{account_name}.blob.{endpoint_suffix}"
-    
 
     def setup_method(self) -> None:
         """Set up test fixtures before each test method."""
         # Create unique container name for this test
         self.container_name = f"test-{uuid.uuid4().hex[:8]}"
-        
+
         # Create blob service client
         self.blob_service_client = BlobServiceClient.from_connection_string(self.CONNECTION_STRING)
-        
+
         # Create container
         self.container_client = self.blob_service_client.create_container(self.container_name)
-        
+
         # Generate SAS URI - can be easily overridden for real storage accounts
         self.sas_uri = self._generate_sas_uri()
-        
+
         # Create base URI using the generated SAS URI
         self.base_uri = f"azure://{self.sas_uri}"
-        
+
         # Create temporary directory for local file operations
         self.temp_dir = tempfile.mkdtemp()
-        
+
         # Create test file structure in Azure
         self._setup_test_blobs()
 
@@ -180,22 +176,21 @@ class TestAzureSchemeFileHandler:
             permissions=ContainerSasPermissions(read=True, write=True, delete=True, list=True),
             expiry=datetime.now(UTC) + timedelta(hours=1)
         )
-        
+
         # Get the appropriate blob endpoint
         blob_endpoint = self._get_blob_endpoint()
-        
+
         # Return the complete SAS URI - works for both Azurite and real Azure
         return f"{blob_endpoint}/{self.container_name}?{sas_token}"
-        
 
     def teardown_method(self) -> None:
         """Clean up test fixtures after each test method."""
         try:
             # Delete the container and all its contents
             self.container_client.delete_container()
-        except:
+        except BaseException:
             pass  # Container might already be deleted
-        
+
         # Clean up local temp directory
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
@@ -207,18 +202,18 @@ class TestAzureSchemeFileHandler:
             "test2.json": '{"test": "json"}',
             "test3.log": "Log entry"
         }
-        
+
         # Test files in subdirectory
         sub_files = {
             "subdir/sub1.txt": "Sub content 1",
             "subdir/sub2.py": "print('hello')"
         }
-        
+
         # Test file in nested directory
         nested_files = {
             "subdir/nested/nested.md": "# Nested markdown"
         }
-        
+
         # Upload all test files
         all_files = {**test_files, **sub_files, **nested_files}
         for blob_name, content in all_files.items():
@@ -238,7 +233,7 @@ class TestAzureSchemeFileHandler:
         uri = self._get_blob_uri("test1.txt")
         temp_dir = Path(self.temp_dir)
         result = AzureSchemeFileHandler.download_file(uri, temp_dir)
-        
+
         assert isinstance(result, FileHandle)
         assert result.path.exists()
         assert result.must_dispose is True
@@ -250,7 +245,7 @@ class TestAzureSchemeFileHandler:
         filename = "test1.txt"
         temp_dir = Path(self.temp_dir)
         result = AzureSchemeFileHandler.download_file(uri, temp_dir, filename)
-        
+
         assert isinstance(result, FileHandle)
         assert result.path.exists()
         assert result.must_dispose is True
@@ -259,14 +254,14 @@ class TestAzureSchemeFileHandler:
     def test_list_entries_shallow_basic(self) -> None:
         """Test shallow listing of directory entries."""
         entries = list(AzureSchemeFileHandler.list_entries_shallow(self.base_uri))
-        
+
         # Should find 4 items: 3 files + 1 directory prefix
         assert len(entries) == 4
-        
+
         # Check that we have the expected entries
         names = {entry.name for entry in entries}
         assert names == {"test1.txt", "test2.json", "test3.log", "subdir"}
-        
+
         # Check properties of a file entry
         file_entry = next(entry for entry in entries if entry.name == "test1.txt")
         assert file_entry.is_file is True
@@ -276,7 +271,7 @@ class TestAzureSchemeFileHandler:
         assert file_entry.full_uri.startswith("azure://")
         assert file_entry.path == "test1.txt"
         assert file_entry.last_modified is not None
-        
+
         # Check properties of a directory entry
         dir_entry = next(entry for entry in entries if entry.name == "subdir")
         assert dir_entry.is_file is False
@@ -290,11 +285,11 @@ class TestAzureSchemeFileHandler:
         # Filter for .txt files only
         regex = r".*\.txt$"
         entries = list(AzureSchemeFileHandler.list_entries_shallow(self.base_uri, regex))
-        
+
         # Should only find test1.txt
         txt_entries = [entry for entry in entries if entry.name.endswith('.txt')]
         assert len(txt_entries) >= 1
-        
+
         # Verify we don't get .json or .log files when filtering for .txt
         names = {entry.name for entry in entries}
         assert "test1.txt" in names or len([n for n in names if n.endswith('.txt')]) > 0
@@ -302,10 +297,10 @@ class TestAzureSchemeFileHandler:
     def test_list_entries_recursive_basic(self) -> None:
         """Test recursive listing of directory entries."""
         entries = list(AzureSchemeFileHandler.list_entries_recursive(self.base_uri))
-        
+
         # Should find all files recursively (no directory entries in recursive mode)
         assert len(entries) >= 6  # At least 6 files
-        
+
         names = {entry.name for entry in entries}
         assert "test1.txt" in names
         assert "test2.json" in names
@@ -319,7 +314,7 @@ class TestAzureSchemeFileHandler:
         # Filter for Python files
         regex = r".*\.py$"
         entries = list(AzureSchemeFileHandler.list_entries_recursive(self.base_uri, regex))
-        
+
         # Should find sub2.py
         py_entries = [entry for entry in entries if entry.name.endswith('.py')]
         assert len(py_entries) >= 1
@@ -330,7 +325,7 @@ class TestAzureSchemeFileHandler:
         # Create empty container
         empty_container = f"empty-{uuid.uuid4().hex[:8]}"
         empty_client = self.blob_service_client.create_container(empty_container)
-        
+
         try:
             # Generate SAS for empty container using the centralized method
             sas_token = generate_sas_token_from_connection_string(
@@ -339,11 +334,11 @@ class TestAzureSchemeFileHandler:
                 permissions=ContainerSasPermissions(read=True, list=True),
                 expiry=datetime.now(UTC) + timedelta(hours=1)
             )
-            
+
             # Get the appropriate blob endpoint
             blob_endpoint = self._get_blob_endpoint()
             empty_uri = f"azure://{blob_endpoint}/{empty_container}?{sas_token}"
-            
+
             entries = list(AzureSchemeFileHandler.list_entries_shallow(empty_uri))
             assert len(entries) == 0
         finally:
@@ -352,7 +347,7 @@ class TestAzureSchemeFileHandler:
     def test_list_entries_nonexistent_container(self) -> None:
         """Test listing entries in a non-existent container."""
         nonexistent_uri = f"azure://http://127.0.0.1:10000/devstoreaccount1/nonexistent?{self.base_uri.split('?')[1]}"
-        
+
         with pytest.raises(Exception):  # Should raise some Azure exception
             list(AzureSchemeFileHandler.list_entries_shallow(nonexistent_uri))
 
@@ -361,10 +356,10 @@ class TestAzureSchemeFileHandler:
         # Create a temporary file to upload
         temp_file = Path(self.temp_dir) / "temp_upload.txt"
         temp_file.write_text("Upload test content")
-        
+
         # Upload the file
         AzureSchemeFileHandler.upload_file_directory(temp_file, self.base_uri, "uploaded.txt")
-        
+
         # Verify the file was uploaded
         uploaded_uri = self._get_blob_uri("uploaded.txt")
         assert AzureSchemeFileHandler.file_exists(uploaded_uri)
@@ -376,13 +371,13 @@ class TestAzureSchemeFileHandler:
         # Create a temporary file to upload
         temp_file = Path(self.temp_dir) / "temp_upload2.txt"
         temp_file.write_text("Direct upload test content")
-        
+
         # Define destination URI
         dest_uri = self._get_blob_uri("direct_upload.txt")
-        
+
         # Upload the file
         AzureSchemeFileHandler.upload_file_direct(temp_file, dest_uri)
-        
+
         # Verify the file was uploaded
         assert AzureSchemeFileHandler.file_exists(dest_uri)
         content = AzureSchemeFileHandler.get_bytes(dest_uri)
@@ -392,7 +387,7 @@ class TestAzureSchemeFileHandler:
         """Test reading file content as bytes."""
         uri = self._get_blob_uri("test1.txt")
         content = AzureSchemeFileHandler.get_bytes(uri)
-        
+
         assert isinstance(content, bytes)
         assert content == b"Test content 1"
 
@@ -402,9 +397,9 @@ class TestAzureSchemeFileHandler:
         test_content = "0123456789"  # 10 bytes
         blob_client = self.container_client.get_blob_client("range_test.txt")
         blob_client.upload_blob(test_content.encode('utf-8'), overwrite=True)
-        
+
         uri = self._get_blob_uri("range_test.txt")
-        
+
         # Read bytes 2-5 (should be "2345")
         content = AzureSchemeFileHandler.get_bytes_range(uri, 2, 4)
         assert content == b"2345"
@@ -413,9 +408,9 @@ class TestAzureSchemeFileHandler:
         """Test navigating to a location within a URI."""
         base_uri = self.base_uri
         location = "subdir/nested"
-        
+
         result = AzureSchemeFileHandler.navigate(base_uri, location)
-        expected_path = f"subdir/nested"
+        expected_path = "subdir/nested"
         assert expected_path in result
         assert result.startswith("azure://")
 
@@ -423,7 +418,7 @@ class TestAzureSchemeFileHandler:
         """Test checking if a file exists."""
         existing_uri = self._get_blob_uri("test1.txt")
         nonexistent_uri = self._get_blob_uri("nonexistent.txt")
-        
+
         assert AzureSchemeFileHandler.file_exists(existing_uri) is True
         assert AzureSchemeFileHandler.file_exists(nonexistent_uri) is False
 
@@ -434,21 +429,21 @@ class TestAzureSchemeFileHandler:
         source_folder.mkdir()
         (source_folder / "file1.txt").write_text("File 1 content")
         (source_folder / "file2.txt").write_text("File 2 content")
-        
+
         # Create a subfolder
         subfolder = source_folder / "subfolder"
         subfolder.mkdir()
         (subfolder / "subfile.txt").write_text("Subfolder content")
-        
+
         # Upload to Azure
         dest_uri = self._get_blob_uri("destination")
         AzureSchemeFileHandler.upload_folder(source_folder, dest_uri)
-        
+
         # Verify the files were uploaded
         assert AzureSchemeFileHandler.file_exists(self._get_blob_uri("destination/file1.txt"))
         assert AzureSchemeFileHandler.file_exists(self._get_blob_uri("destination/file2.txt"))
         assert AzureSchemeFileHandler.file_exists(self._get_blob_uri("destination/subfolder/subfile.txt"))
-        
+
         # Verify content
         content1 = AzureSchemeFileHandler.get_bytes(self._get_blob_uri("destination/file1.txt"))
         assert content1 == b"File 1 content"
@@ -459,11 +454,11 @@ class TestAzureSchemeFileHandler:
         """Test uploading a stream directly to a file."""
         stream_content = b"Stream content for direct upload"
         stream = BytesIO(stream_content)
-        
+
         dest_uri = self._get_blob_uri("stream_direct.txt")
-        
+
         AzureSchemeFileHandler.upload_stream_direct(stream, dest_uri)
-        
+
         assert AzureSchemeFileHandler.file_exists(dest_uri)
         content = AzureSchemeFileHandler.get_bytes(dest_uri)
         assert content == stream_content
@@ -472,9 +467,9 @@ class TestAzureSchemeFileHandler:
         """Test uploading a stream to a directory with filename."""
         stream_content = b"Stream content for directory upload"
         stream = BytesIO(stream_content)
-        
+
         AzureSchemeFileHandler.upload_stream_directory(stream, self.base_uri, "uploaded_stream.txt")
-        
+
         # File should be created with the specified filename
         uploaded_uri = self._get_blob_uri("uploaded_stream.txt")
         assert AzureSchemeFileHandler.file_exists(uploaded_uri)
@@ -485,7 +480,7 @@ class TestAzureSchemeFileHandler:
         """Test getting the size of a file."""
         uri = self._get_blob_uri("test1.txt")
         size = AzureSchemeFileHandler.get_file_size(uri)
-        
+
         expected_size = len("Test content 1")
         assert size == expected_size
 
@@ -494,10 +489,10 @@ class TestAzureSchemeFileHandler:
         large_content = "x" * 1000  # 1000 bytes
         blob_client = self.container_client.get_blob_client("large.txt")
         blob_client.upload_blob(large_content.encode('utf-8'), overwrite=True)
-        
+
         uri = self._get_blob_uri("large.txt")
         size = AzureSchemeFileHandler.get_file_size(uri)
-        
+
         assert size == 1000
 
     def test_regex_filter_behavior(self) -> None:
@@ -505,21 +500,21 @@ class TestAzureSchemeFileHandler:
         # Upload files with specific patterns
         files = {
             "pattern_test/log_2023.txt": "content",
-            "pattern_test/log_2024.txt": "content", 
+            "pattern_test/log_2024.txt": "content",
             "pattern_test/data.json": "content",
             "pattern_test/config.xml": "content"
         }
-        
+
         for blob_name, content in files.items():
             blob_client = self.container_client.get_blob_client(blob_name)
             blob_client.upload_blob(content.encode('utf-8'), overwrite=True)
-        
+
         pattern_uri = self._get_blob_uri("pattern_test")
-        
+
         # Test regex for log files from 2024
         regex = r".*log_2024.*"
         entries = list(AzureSchemeFileHandler.list_entries_shallow(pattern_uri, regex))
-        
+
         # Should match log_2024.txt
         matching_names = {entry.name for entry in entries}
         assert any("log_2024" in name for name in matching_names)
@@ -527,7 +522,7 @@ class TestAzureSchemeFileHandler:
     def test_entry_properties_completeness(self) -> None:
         """Test that EntryProperties objects are complete and correct."""
         entries = list(AzureSchemeFileHandler.list_entries_shallow(self.base_uri))
-        
+
         for entry in entries:
             # All entries should have required fields
             assert isinstance(entry.name, str)
@@ -535,7 +530,7 @@ class TestAzureSchemeFileHandler:
             assert isinstance(entry.path, str)
             assert isinstance(entry.is_file, bool)
             assert entry.full_uri.startswith("azure://")
-            
+
             if entry.is_file:
                 assert isinstance(entry.size, int)
                 assert entry.size >= 0
@@ -547,15 +542,15 @@ class TestAzureSchemeFileHandler:
         """Test the difference between recursive and shallow listing."""
         shallow_entries = list(AzureSchemeFileHandler.list_entries_shallow(self.base_uri))
         recursive_entries = list(AzureSchemeFileHandler.list_entries_recursive(self.base_uri))
-        
+
         # Recursive should find more entries than shallow (files only vs files + dirs)
         assert len(recursive_entries) >= len(shallow_entries)
-        
+
         # Shallow should find directory prefixes
         shallow_names = {entry.name for entry in shallow_entries}
         assert "test1.txt" in shallow_names  # Direct child
         assert "subdir" in shallow_names    # Directory prefix
-        
+
         # Recursive should find all files but no directory prefixes
         recursive_names = {entry.name for entry in recursive_entries}
         assert "test1.txt" in recursive_names  # Direct child
@@ -568,7 +563,7 @@ class TestAzureSchemeFileHandler:
         nonexistent_uri = self._get_blob_uri("nonexistent.txt")
         with pytest.raises(ResourceNotFoundError):
             AzureSchemeFileHandler.get_bytes(nonexistent_uri)
-        
+
         # Test with non-existent file for get_file_size
         with pytest.raises(ResourceNotFoundError):
             AzureSchemeFileHandler.get_file_size(nonexistent_uri)
@@ -579,14 +574,14 @@ class TestAzureSchemeFileHandler:
         special_filename = "file with spaces & symbols.txt"
         blob_client = self.container_client.get_blob_client(special_filename)
         blob_client.upload_blob("Special content".encode('utf-8'), overwrite=True)
-        
+
         uri = self._get_blob_uri(special_filename)
-        
+
         # Test that operations work with special characters
         assert AzureSchemeFileHandler.file_exists(uri) is True
         content = AzureSchemeFileHandler.get_bytes(uri)
         assert content == b"Special content"
-        
+
         # Test listing finds the file
         entries = list(AzureSchemeFileHandler.list_entries_shallow(self.base_uri))
         special_entries = [e for e in entries if "spaces" in e.name]
@@ -598,7 +593,7 @@ class TestAzureSchemeFileHandler:
         # Test with different path structures
         nested_uri = self._get_blob_uri("subdir")
         entries = list(AzureSchemeFileHandler.list_entries_shallow(nested_uri))
-        
+
         # Should find files in subdir
         names = {entry.name for entry in entries}
         assert "sub1.txt" in names or "nested" in names
@@ -606,34 +601,34 @@ class TestAzureSchemeFileHandler:
     def test_concurrent_operations(self) -> None:
         """Test that concurrent operations work correctly."""
         import threading
-        
+
         results = []
         errors = []
-        
+
         def upload_file(i: int) -> None:
             try:
                 temp_file = Path(self.temp_dir) / f"concurrent_{i}.txt"
                 temp_file.write_text(f"Concurrent content {i}")
-                
+
                 dest_uri = self._get_blob_uri(f"concurrent_{i}.txt")
                 AzureSchemeFileHandler.upload_file_direct(temp_file, dest_uri)
-                
+
                 # Verify upload
                 assert AzureSchemeFileHandler.file_exists(dest_uri)
                 results.append(i)
             except Exception as e:
                 errors.append(e)
-        
+
         # Run multiple uploads concurrently
         threads = []
         for i in range(5):
             thread = threading.Thread(target=upload_file, args=(i,))
             threads.append(thread)
             thread.start()
-        
+
         for thread in threads:
             thread.join()
-        
+
         # All uploads should succeed
         assert len(errors) == 0
         assert len(results) == 5

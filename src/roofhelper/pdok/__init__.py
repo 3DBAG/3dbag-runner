@@ -3,12 +3,14 @@
 from .UploadResult import UploadResult
 from .PdokUpdateTrigger import PdokUpdateTrigger
 from .PdokS3Uploader import PdokS3Uploader
-from .PdokDeliveryProperties import PDOK_DELIVERY_SCHEMA, PdokDeliveryProperties
+from .PdokDeliveryGebouw import PDOK_DELIVERY_SCHEMA_GEBOUW
+from .PdokDeliverySound import PDOK_DELIVERY_SCHEMA_SOUND
 
 __all__ = [
     'UploadResult',
     'PdokUpdateTrigger',
     'PdokS3Uploader',
-    'PDOK_DELIVERY_SCHEMA',
-    'PdokDeliveryProperties'
+    'PDOK_DELIVERY_SCHEMA_GEBOUW',
+    'PDOK_DELIVERY_SCHEMA_SOUND',
+    'PdokDeliveryGebouw'
 ]

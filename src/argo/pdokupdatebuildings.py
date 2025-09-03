@@ -13,14 +13,14 @@ def pdok_workflow_func() -> None:
     import os
     from pathlib import Path
     from main import trigger_pdok_update
-    from roofhelper.pdok.PdokDeliverySound import get_pdok_sound_features, PDOK_DELIVERY_SCHEMA_SOUND
+    from roofhelper.pdok.PdokDeliveryGebouw import get_pdok_building_features, PDOK_DELIVERY_SCHEMA_GEBOUW
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
 
     logger = setup_logging(logging.INFO)
 
     # Read configuration from mounted secrets
-    secrets_path = Path("/var/secrets/pdok-delivery-secrets")
+    secrets_path = Path("/var/secrets/pdok-delivery-secrets-buildings")
 
     def read_secret(key: str) -> str:
         """Read a secret value from the mounted secret volume."""
@@ -57,8 +57,8 @@ def pdok_workflow_func() -> None:
     ahn_path = file_handler.download_file(ahn_source)
 
     index_destination = "file:///workflow/cache/pdok_index.gpkg"
-    features = get_pdok_sound_features(source, ahn_path, url_prefix)
-    write_features_to_geopackage(PDOK_DELIVERY_SCHEMA_SOUND, features, index_destination, Path("/workflow/cache"))
+    features = get_pdok_building_features(source, ahn_path, url_prefix)
+    write_features_to_geopackage(PDOK_DELIVERY_SCHEMA_GEBOUW, features, index_destination, Path("/workflow/cache"))
 
     logger.info("PDOK index created successfully")
 
@@ -77,16 +77,16 @@ def pdok_workflow_func() -> None:
 
 
 def generate_workflow() -> None:
-    with WorkflowTemplate(name="pdokupdategeluid",
-                          generate_name="pdokupdategeluid-",
-                          entrypoint="pdokupdategeluiddag",
+    with WorkflowTemplate(name="pdokupdategebouw",
+                          generate_name="pdokupdategebouw-",
+                          entrypoint="pdokupdategebouwdag",
                           namespace="argo",
                           service_account_name="workflow-runner",
                           image_pull_secrets="acrdddprodman") as w:
-        with DAG(name="pdokupdategeluiddag"):
+        with DAG(name="pdokupdategebouwdag"):
             workflow: Script = pdok_workflow_func()  # type: ignore   # noqa: F841
 
-        with open("generated/pdokupdategeluid.yaml", "w") as f:
+        with open("generated/pdokupdategebouw.yaml", "w") as f:
             w.to_yaml(f)
 
 
