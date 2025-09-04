@@ -11,6 +11,5 @@ __all__ = [
     'PdokUpdateTrigger',
     'PdokS3Uploader',
     'PDOK_DELIVERY_SCHEMA_GEBOUW',
-    'PDOK_DELIVERY_SCHEMA_SOUND',
-    'PdokDeliveryGebouw'
+    'PDOK_DELIVERY_SCHEMA_SOUND'
 ]

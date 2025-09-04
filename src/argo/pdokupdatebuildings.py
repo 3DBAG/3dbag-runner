@@ -5,7 +5,7 @@ from roofhelper.pdok.PdokGeopackageWriter import write_features_to_geopackage
 
 @argo_worker(volumes=[
     EmptyDirVolume(name="workflow", mount_path="/workflow"),
-    SecretVolume(name="pdok-secrets", mount_path="/var/secrets/pdok-delivery-secrets", secret_name="pdok-delivery-secrets")
+    SecretVolume(name="pdok-secrets", mount_path="/var/secrets/pdok-delivery-secrets-buildings", secret_name="pdok-delivery-secrets-buildings")
 ])
 def pdok_workflow_func() -> None:
     """Combined workflow to create PDOK index and trigger update using secrets."""

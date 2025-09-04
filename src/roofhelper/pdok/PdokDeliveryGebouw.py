@@ -41,24 +41,24 @@ def _extract_dsm_coordinates_from_filename(filename: str) -> Optional[tuple[int,
 def _extract_ahn_key_from_filename(filename: str) -> Optional[str]:
     """
     Extracts AHN key from filename.
-    Expected patterns: 
+    Expected patterns:
     - <ahn_key>_<anything> (legacy format) - Example: 13bn1_something.laz -> 13bn1
     - <name>_<year>_<x>_<y> (new format) - Example: gebouwen_2021_123_456.laz -> use coordinates to create key
     """
     basename = os.path.basename(filename)
-    
+
     # Try new format first: <name>_<year>_<x>_<y>
     new_format_match = re.match(r"^(.+)_(\d{4})_(\d+)_(\d+)(?:\.\w+)?$", basename)
     if new_format_match:
         x, y = int(new_format_match.group(3)), int(new_format_match.group(4))
         # Create a synthetic key from coordinates for 2x2km tiles
         return f"{x}_{y}"
-    
+
     # Try legacy format: <ahn_key>_<anything>
     legacy_match = re.match(r"^(?:.*)([0-9]{2}[a-z]{2}\d)(?:_.*)$", basename)
     if legacy_match:
         return legacy_match.group(1)
-    
+
     return None
 
 
@@ -80,11 +80,11 @@ def _extract_coordinates_from_new_format(filename: str) -> Optional[tuple[int, i
 def _create_geometry_from_coordinates(x: int, y: int, tile_size_km: int = 2) -> Polygon:
     """Create geometry for tile based on coordinates and tile size."""
     tile_size_m = tile_size_km * 1000  # Convert km to meters
-    
+
     # Convert coordinates to actual coordinates (assuming they're in km units)
     x_m = x * 1000
     y_m = y * 1000
-    
+
     return Polygon([
         (x_m, y_m),
         (x_m + tile_size_m, y_m),
@@ -133,7 +133,7 @@ def _process_dsm_layers(file_handler: SchemeFileHandler, source_uri: str, downlo
     for entry in file_handler.list_entries_shallow(source_uri):
         if entry.is_directory and entry.name.isdigit():
             year_directories.append(int(entry.name))
-    
+
     year_directories.sort()  # Sort years for consistent processing
     log.info(f"Found year directories for DSM processing: {year_directories}")
 
@@ -155,14 +155,14 @@ def _process_dsm_layers(file_handler: SchemeFileHandler, source_uri: str, downlo
             for entry in year_entries:
                 if entry.is_directory and entry.name.startswith("dsm"):
                     dsm_layer_directories.append(entry.name)
-            
+
             log.info(f"Found DSM layer directories for year {year}: {dsm_layer_directories}")
 
             # Process DSM layers
             for layer_name in dsm_layer_directories:
                 try:
                     layer_uri = file_handler.navigate(year_uri, f"{layer_name}/laz")
-                    
+
                     # Initialize feature collection for this layer if not exists
                     layer_key = f"basisbestand_{layer_name}"
                     if layer_key not in features_by_type:
@@ -252,7 +252,7 @@ def _process_3d_layers(file_handler: SchemeFileHandler, source_uri: str, ahn_jso
     for entry in file_handler.list_entries_shallow(source_uri):
         if entry.is_directory and entry.name.isdigit():
             year_directories.append(int(entry.name))
-    
+
     year_directories.sort()  # Sort years for consistent processing
     log.info(f"Found year directories: {year_directories}")
 
@@ -274,14 +274,14 @@ def _process_3d_layers(file_handler: SchemeFileHandler, source_uri: str, ahn_jso
             for entry in year_entries:
                 if entry.is_directory:
                     layer_directories.append(entry.name)
-            
+
             log.info(f"Found layer directories for year {year}: {layer_directories}")
 
             # Process each layer
             for layer_name in layer_directories:
                 try:
                     layer_uri = file_handler.navigate(year_uri, layer_name)
-                    
+
                     # Initialize feature collection for this layer if not exists
                     layer_key = f"basisbestand_{layer_name}"
                     if layer_key not in features_by_type:
@@ -298,7 +298,7 @@ def _process_3d_layers(file_handler: SchemeFileHandler, source_uri: str, ahn_jso
 
                         # Determine geometry based on filename format
                         geometry: Optional[Polygon] = None
-                        
+
                         # Check if it's the new coordinate-based format
                         coords = _extract_coordinates_from_new_format(file_entry.name)
                         if coords:
@@ -309,7 +309,7 @@ def _process_3d_layers(file_handler: SchemeFileHandler, source_uri: str, ahn_jso
                             # Legacy format: use AHN geometries
                             if ahn_key.lower() in ahn_geometries:
                                 geometry = ahn_geometries[ahn_key.lower()]
-                        
+
                         if not geometry:
                             log.warning(f"Could not determine geometry for file {file_entry.name}")
                             continue
