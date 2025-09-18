@@ -13,6 +13,7 @@ from typing import Any  # added for mypy suppression
     Parameter(name="height_destination", value_from=ValueFrom(path="/workflow/params/height_destination")),
     Parameter(name="geluid_source", value_from=ValueFrom(path="/workflow/params/geluid_source")),
     Parameter(name="geluid_destination", value_from=ValueFrom(path="/workflow/params/geluid_destination")),
+    Parameter(name="year_geluid", value_from=ValueFrom(path="/workflow/params/year_geluid")),
     Parameter(name="tyler_source", value_from=ValueFrom(path="/workflow/params/tyler_source")),
     Parameter(name="tyler_intermediate", value_from=ValueFrom(path="/workflow/params/tyler_intermediate")),
     Parameter(name="tyler_destination", value_from=ValueFrom(path="/workflow/params/tyler_destination")),
@@ -44,6 +45,7 @@ def generate_parameters(folder: str, year: str) -> None:
         "height_destination": handler.navigate(folder, f"{year}/hoogte/{year}_3d_hoogtestatistieken_gebouwen.zip"),
         "geluid_source": handler.navigate(folder, f"{year}/cityjson"),
         "geluid_destination": handler.navigate(folder, f"{year}/geluid/{year_geluid}_NL_3d_geluid_gebouwen.zip"),
+        "year_geluid": str(year_geluid),
         "tyler_source": handler.navigate(folder, f"{year}/cityjson"),
         "tyler_intermediate": handler.navigate(folder, f"{year}/intermediate"),
         "tyler_destination": handler.navigate(folder, f"{year}/tyler"),
@@ -246,7 +248,8 @@ def generate_workflow() -> None:
                     arguments={
                         "source": "{{steps.%s.outputs.parameters.geluid_destination}}" % params_step.name,
                         "destination": "{{steps.%s.outputs.parameters.geluid_split_destination}}" % params_step.name,
-                        "year": w.get_parameter("year"),
+                        # Use year_geluid (year + 1) for geluid split step
+                        "year": "{{steps.%s.outputs.parameters.year_geluid}}" % params_step.name,
                         "postfix": "3dgeluid_gebouwen"
                     }
                 )
