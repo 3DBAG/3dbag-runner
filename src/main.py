@@ -195,11 +195,23 @@ def runsingleroofertile(extent: tuple[float, float, float, float],
         log.info(f"Generated the following configuration:\n{config}")
         config_path = file_handler.create_file(suffix=".toml", text=config)
 
+        # Run roofer with timeout and retries via helper
+        MAX_RETRIES = 3  # max retries on failure
+        TIMEOUT_SECONDS = 6 * 60 * 60  # 6 hours per attempt
         try:
-            log.info(f"Start running roofer for {destination}")
-            subprocess.run(["roofer", "-c", str(config_path), "--no-tiling", "--lod12", "--lod13", "--lod22", "--no-simplify"], check=True, text=True)
-            log.info(f"Done running roofer for {destination}")
+            processing.run_with_retries([
+                "roofer", "-c", str(config_path), "--no-tiling", "--lod12", "--lod13", "--lod22", "--no-simplify"
+            ], timeout=TIMEOUT_SECONDS, max_attempts=MAX_RETRIES + 1, check=True, text=True, capture_output=True)
+            roofer_success = True
+        except subprocess.TimeoutExpired:
+            log.error(f"Roofer timed out for {destination} after {MAX_RETRIES + 1} attempts.")
+            roofer_success = False
+        except subprocess.CalledProcessError as e:
+            # run_with_retries already logs stderr/command when capture_output=True; keep only a summary here.
+            log.error(f"Roofer failed for {destination} after {MAX_RETRIES + 1} attempts, exit code {e.returncode}.")
+            roofer_success = False
 
+        if roofer_success:
             candidates = glob.glob(os.path.join(temporary_directory, "*.jsonl"))
             if len(candidates) > 0:
                 jsonl = Path(glob.glob(os.path.join(temporary_directory, "*.jsonl"))[0])
@@ -214,11 +226,8 @@ def runsingleroofertile(extent: tuple[float, float, float, float],
                 os.unlink(cityjson)
             else:
                 log.info(f"Tile {destination} didn't produce any output, validate what is going on")
-
-        except subprocess.CalledProcessError as e:
-            log.error(f"Failed processing file {destination}")
-            log.error(f"Error: Command '{e.cmd}' returned non-zero exit status {e.returncode}.")
-            log.error(f"Stderr: {e.stderr}")
+        else:
+            log.error(f"Roofer did not complete successfully for {destination} after {MAX_RETRIES + 1} attempts.")
 
         for file in file_handler.file_handles:  # Delete all temporary files
             file_handler.delete_if_not_local(file.path)
