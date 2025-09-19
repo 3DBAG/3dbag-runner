@@ -71,7 +71,7 @@ class Building:
 
 def safe_subtract(value: Any, base: Optional[float]) -> float:
     """
-    Subtract base from value, but return None if either is None
+    Subtract base from value, but return 0.0 if either is None
     or if they’re not numbers.
     """
     try:
