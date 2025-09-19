@@ -713,7 +713,7 @@ def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
 
 def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Path) -> None:
     handler = SchemeFileHandler(temporary_directory)
-    tifs  = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
+    tifs = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
 
     def _download(uri: EntryProperties) -> Path:
         return handler.download_file(uri.full_uri)
@@ -782,7 +782,7 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
             log.warning(f"No GTiff tiles found for level {break_zoom} (pattern: {tiff_pattern})")
 
         # Make terrain tiles for level break_zoom-1 to 0
-        log.info(f"Run ctb-tile on level {break_zoom-1} to {end_zoom}")
+        log.info(f"Run ctb-tile on level {break_zoom - 1} to {end_zoom}")
         subprocess.run([
             "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
             "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_dir), level_vrt
@@ -792,7 +792,6 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
         log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
     except subprocess.CalledProcessError as e:
         log.error(f"External command failed with exit code {e.returncode}: {e}")
-
 
 
 def main() -> None:

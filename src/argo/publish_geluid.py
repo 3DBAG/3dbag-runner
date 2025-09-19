@@ -103,7 +103,7 @@ def generate_workflow() -> None:
     ]) as w:
         with DAG(name="pdokupdategeluiddag", inputs=[
             Parameter(name="create_test_index"),
-            Parameter(name="additional_index_destination"),
+            Parameter(name="additional_index_destination")
         ]):
             workflow: Script = pdok_workflow_func(arguments={  # type: ignore   # noqa: F841
                 "create_test_index": "{{inputs.parameters.create_test_index}}",
