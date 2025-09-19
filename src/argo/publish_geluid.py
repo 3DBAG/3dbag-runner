@@ -1,4 +1,4 @@
-from hera.workflows import DAG, Script, EmptyDirVolume, SecretVolume
+from hera.workflows import DAG, Script, EmptyDirVolume, SecretVolume, Parameter
 from argo.argodefaults import argo_worker, get_workflow_template
 
 
@@ -6,7 +6,7 @@ from argo.argodefaults import argo_worker, get_workflow_template
     EmptyDirVolume(name="workflow", mount_path="/workflow"),
     SecretVolume(name="pdok-secrets", mount_path="/var/secrets/pdok-delivery-secrets", secret_name="pdok-delivery-secrets")
 ])
-def pdok_workflow_func() -> None:
+def pdok_workflow_func(create_test_index: str = "false", additional_index_destination: str = "") -> None:
     """Combined workflow to create PDOK index and trigger update using secrets."""
     import logging
     import os
@@ -34,6 +34,7 @@ def pdok_workflow_func() -> None:
             logger.error(f"Failed to read secret '{key}': {e}")
             raise
 
+
     # Read all required configuration from secrets
     source = read_secret("source")
     ahn_source = "file:///ahn.json"
@@ -45,6 +46,9 @@ def pdok_workflow_func() -> None:
     trigger_update_url = read_secret("trigger_update_url")
     trigger_private_key_content = read_secret("trigger_private_key_content")
     expected_gpkg_name = read_secret("expected_gpkg_name")
+    # Parameters: additional copy destination and create_test_index flag
+    additional_index_destination = (additional_index_destination or "").strip()
+    create_test_index_flag = str(create_test_index).strip().lower() in {"1", "true", "yes", "y"}
 
     logger.info("Successfully loaded configuration from secrets")
 
@@ -56,31 +60,56 @@ def pdok_workflow_func() -> None:
     file_handler = SchemeFileHandler(Path("/workflow/cache"))
     ahn_path = file_handler.download_file(ahn_source)
 
-    index_destination = "file:///workflow/cache/pdok_index.gpkg"
+    # Always create the pdok_index locally so trigger_pdok_update can read/upload quickly
+    local_index_destination = "file:///workflow/cache/pdok_index.gpkg"
     features = get_pdok_sound_features(source, ahn_path, url_prefix)
-    write_features_to_geopackage(PDOK_DELIVERY_SCHEMA_SOUND, features, index_destination, Path("/workflow/cache"))
+    write_features_to_geopackage(PDOK_DELIVERY_SCHEMA_SOUND, features, local_index_destination, Path("/workflow/cache"))
 
     logger.info("PDOK index created successfully")
 
+    # If user defined an additional destination, make an extra copy
+    if additional_index_destination:
+        try:
+            logger.info(f"Copying PDOK index to additional destination: {additional_index_destination}")
+            local_index_path = Path("/workflow/cache/pdok_index.gpkg")
+            file_handler.upload_file_direct(local_index_path, additional_index_destination)
+            logger.info("Additional PDOK index copy uploaded successfully")
+        except Exception as e:
+            logger.error(f"Failed to upload additional PDOK index copy: {e}")
+            raise
+
     # Step 2: Trigger PDOK update using the created index
-    logger.info("Starting PDOK update trigger")
-    trigger_pdok_update(index_destination,
-                        destination_s3_url,
-                        destination_s3_user,
-                        destination_s3_key,
-                        s3_prefix,
-                        trigger_update_url,
-                        trigger_private_key_content,
-                        expected_gpkg_name)
+    if create_test_index_flag:
+        logger.info("create_test_index=true; skipping PDOK update trigger")
+    else:
+        logger.info("Starting PDOK update trigger")
+        trigger_pdok_update(local_index_destination,
+                            destination_s3_url,
+                            destination_s3_user,
+                            destination_s3_key,
+                            s3_prefix,
+                            trigger_update_url,
+                            trigger_private_key_content,
+                            expected_gpkg_name)
 
     logger.info("PDOK workflow completed successfully")
 
 
 def generate_workflow() -> None:
     with get_workflow_template(__name__.split('.')[-1],
-                               entrypoint="pdokupdategeluiddag") as w:
-        with DAG(name="pdokupdategeluiddag"):
-            workflow: Script = pdok_workflow_func()  # type: ignore   # noqa: F841
+                               entrypoint="pdokupdategeluiddag",
+                               arguments=[
+                                   Parameter(name="create_test_index", default="false", enum=["true", "false"]),
+                                   Parameter(name="additional_index_destination", default="")
+                               ]) as w:
+        with DAG(name="pdokupdategeluiddag", inputs=[
+            Parameter(name="create_test_index"),
+            Parameter(name="additional_index_destination"),
+        ]):
+            workflow: Script = pdok_workflow_func(arguments={  # type: ignore   # noqa: F841
+                "create_test_index": "{{inputs.parameters.create_test_index}}",
+                "additional_index_destination": "{{inputs.parameters.additional_index_destination}}",
+            })
 
         with open(f"generated/{w.name}.yaml", "w") as f:
             w.to_yaml(f)
