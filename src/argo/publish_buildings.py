@@ -34,7 +34,6 @@ def pdok_workflow_func(create_test_index: str = "false", additional_index_destin
             logger.error(f"Failed to read secret '{key}': {e}")
             raise
 
-
     # Read all required configuration from secrets
     source = read_secret("source")
     ahn_source = "file:///ahn.json"
@@ -101,7 +100,7 @@ def generate_workflow() -> None:
                                arguments=[
                                    Parameter(name="create_test_index", default="false", enum=["true", "false"]),
                                    Parameter(name="additional_index_destination", default="")
-                               ]) as w:
+    ]) as w:
         with DAG(name="pdokupdategebouwdag", inputs=[
             Parameter(name="create_test_index"),
             Parameter(name="additional_index_destination"),
