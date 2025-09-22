@@ -122,7 +122,7 @@ def get_pdok_sound_features(source_uri: str, ahn_json_path: Path, download_url_p
 
                     # Create feature for geopackage
                     properties = PdokDeliveryPropertiesSound(
-                        bladnr=ahn_key,
+                        bladnr=ahn_key.lower(),
                         bag_peildatum=year,
                         download_size_bytes=file_entry.size or 0,
                         download_link=download_link,
