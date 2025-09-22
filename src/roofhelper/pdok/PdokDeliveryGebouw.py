@@ -329,7 +329,7 @@ def _process_3d_layers(file_handler: SchemeFileHandler, source_uri: str, ahn_jso
 
                         # Create feature
                         properties = PdokDeliveryPropertiesBuilding(
-                            bladnr=bladnr,
+                            bladnr=bladnr.lower(),
                             jaargang_luchtfoto=year,
                             download_size_bytes=file_entry.size or 0,
                             download_link=download_link,
