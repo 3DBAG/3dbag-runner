@@ -1,5 +1,5 @@
 import subprocess
-from typing import Optional
+
 from hera.workflows import Artifact, DAG, Parameter, Script
 from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy
 
@@ -10,15 +10,19 @@ from argo.argodefaults import argo_worker, MEMORY_EMPTY_DIR, get_workflow_templa
 def workerfunc(source_a: str, source_b: str, destination: str, destination_name_pattern: str) -> None:
     import shutil
     import re
+    import os
+
     from pathlib import Path
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from functools import partial
+    from typing import Optional
 
     from roofhelper.io import SchemeFileHandler, EntryProperties
     from roofhelper.defaultlogging import setup_logging
+    from roofhelper.zip import zip_file
 
     log = setup_logging()
-    pattern = re.compile(r"^(?P<test>[a-zA-Z]*)_(?P<x>\d)_(?P<y>\d$)")
+    pattern = re.compile(r"^.*_(?P<x>\d*)_(?P<y>\d*)\.city\.json$")
     
     class FileCoordinate: 
         x: int
@@ -50,9 +54,9 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         
 
     handler = SchemeFileHandler(Path("/workflow"))
-    source_a_entries = {coord for x in handler.list_entries_shallow(source_a, r"$.*\.city\.json$") if x.is_file and (coord := get_file_coordinate(x)) is not None}
-    source_b_entries = {coord for x in handler.list_entries_shallow(source_b, r"$.*\.city\.json$") if x.is_file and (coord := get_file_coordinate(x)) is not None}
-    
+    source_a_entries = {coord for x in handler.list_entries_shallow(source_a, r"^.*\.city\.json$") if x.is_file and (coord := get_file_coordinate(x)) is not None}
+    source_b_entries = {coord for x in handler.list_entries_shallow(source_b, r"^.*\.city\.json$") if x.is_file and (coord := get_file_coordinate(x)) is not None}
+
     # Divide into two buckets using set operations
     only_in_a = source_a_entries - source_b_entries
     only_in_b = source_b_entries - source_a_entries
@@ -66,20 +70,24 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
     def copy_tile(tile: FileCoordinate, handler: SchemeFileHandler, destination: str, destination_name_pattern: str) -> None:
         """Copy a single tile from source to destination"""
         # Example: "3d_gebouwen_5_10.city.json" if destination_name_pattern is "3d_gebouwen_{x}_{y}.city.json"
-        tile_dest_uri = handler.navigate(destination, destination_name_pattern.format(x=tile.x, y=tile.y))
+        zipfile =  destination_name_pattern.format(x=tile.x, y=tile.y) + ".zip"
+        cityjson =  destination_name_pattern.format(x=tile.x, y=tile.y) + ".city.json"
+        tile_dest_uri = handler.navigate(destination, zipfile)
         if not handler.file_exists(tile_dest_uri):
             file = Path()
             try:
                 log.info(f"Copying tile {tile.name} from source a to destination")
                 file = handler.download_file(tile.uri)
-                handler.upload_file_direct(file, tile_dest_uri)
+                zip_file(file, Path(zipfile), cityjson)
+                handler.upload_file_direct(Path(zipfile), tile_dest_uri)
+                os.unlink(zipfile)
             except Exception as e:
                 log.info(f"Something went wrong while uploading {tile._key()}")
             finally:
                 handler.delete_if_not_local(file)
             
         else:
-            log.info(f"Tile {tile.name} already exists in destination")
+            log.info(f"Tile {zipfile} already exists in destination")
 
     # Process only_in_a files in parallel
     if only_in_a:
@@ -122,13 +130,15 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
 
                 jsonl_a = index_workdir / f"a{tile.name}"
                 jsonl_b = index_workdir / f"b{tile.name}"
-                merged = index_workdir / dest_name
+                merged_cityjson = index_workdir / f"{dest_name}.city.json"
+                merged_zip = index_workdir / f"{dest_name}.zip"
 
                 subprocess.run(f"cjseq cat {local_a} > {jsonl_a}", shell=True, check=True)
                 subprocess.run(f"cjseq cat {local_b} > {jsonl_b}", shell=True, check=True)
-                subprocess.run(f"cat {jsonl_a} {jsonl_b} | cjseq collect > {merged}", shell=True, check=True)
+                subprocess.run(f"cat {jsonl_a} {jsonl_b} | cjseq collect > {merged_cityjson}", shell=True, check=True)
 
-                handler.upload_file_direct(Path(merged), tile_dest_uri)
+                zip_file(Path(merged_cityjson), Path(merged_zip))
+                handler.upload_file_direct(Path(merged_zip), tile_dest_uri)
             except Exception as e:
                 log.info(f"Something went wrong while uploading {tile._key()}: {e}")
             finally:
@@ -157,14 +167,14 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
 
 def generate_workflow() -> None:
     with get_workflow_template(__name__.split('.')[-1],
-                               entrypoint="splitgpkgdag",
+                               entrypoint="dag",
                                arguments=[
                                    Parameter(name="source_a", default="azure://<sas>"),
                                    Parameter(name="source_b", default="azure://<sas>"),
-                                   Parameter(name="destination", default="2022"),
-                                   Parameter(name="destination_name_pattern", default="3d_gebouwen")
+                                   Parameter(name="destination", default="azure://<sas>"),
+                                   Parameter(name="destination_name_pattern", default="3d_volledig_{x}_{y}")
     ]) as w:
-        with DAG(name="splitgpkgdag", inputs=[Parameter(name="source"), Parameter(name="destination"), Parameter(name="year"), Parameter(name="postfix")]):
+        with DAG(name="dag", inputs=[Parameter(name="source_a"), Parameter(name="source_b"), Parameter(name="destination"), Parameter(name="destination_name_pattern")]):
             worker: Script = workerfunc(arguments={  # type: ignore  # noqa: F841
                 "source_a": "{{inputs.parameters.source_a}}",
                 "source_b": "{{inputs.parameters.source_b}}",
