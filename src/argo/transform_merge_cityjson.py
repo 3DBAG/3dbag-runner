@@ -1,5 +1,3 @@
-import subprocess
-
 from hera.workflows import Artifact, DAG, Parameter, Script
 from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy
 
@@ -8,18 +6,21 @@ from argo.argodefaults import argo_worker, MEMORY_EMPTY_DIR, get_workflow_templa
 
 @argo_worker()
 def workerfunc(source_a: str, source_b: str, destination: str, destination_name_pattern: str) -> None:
+    import subprocess
     import shutil
     import re
     import os
+    import json
 
     from pathlib import Path
     from concurrent.futures import ThreadPoolExecutor, as_completed
     from functools import partial
-    from typing import Optional
+    from typing import Optional, Any
 
     from roofhelper.io import SchemeFileHandler, EntryProperties
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.zip import zip_file
+    from roofhelper.tyler import translate_cityjson
 
     log = setup_logging()
     pattern = re.compile(r"^.*_(?P<x>\d*)_(?P<y>\d*)\.city\.json$")
@@ -41,6 +42,11 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         
         def __hash__(self) -> int:
             return hash(self._key())
+
+        def __eq__(self, other: Any) -> bool:
+            if not isinstance(other, FileCoordinate):
+                return False
+            return self._key() == other._key()
 
     def get_file_coordinate(entry: EntryProperties) -> Optional[FileCoordinate]:
         match = pattern.match(entry.name)
@@ -91,6 +97,7 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
 
     # Process only_in_a files in parallel
     if only_in_a:
+        log.info("Copying files only in a")
         copy_from_a = partial(copy_tile, handler=handler, 
                              destination=destination, destination_name_pattern=destination_name_pattern)
         with ThreadPoolExecutor() as executor:
@@ -98,11 +105,20 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
 
     # Process only_in_b files in parallel
     if only_in_b:
+        log.info("Copying files only in b")
         copy_from_b = partial(copy_tile, handler=handler, 
                              destination=destination, destination_name_pattern=destination_name_pattern)
         with ThreadPoolExecutor() as executor:
             list(executor.map(copy_from_b, only_in_b))
     
+    def json_translate(path: Path, skip_cityjson_type: bool = False) -> None:
+        with open(path, "r") as f: 
+            translated = translate_cityjson(json.load(f))
+        
+    def json_dump(content: dict[Any, Any], path: Path) -> None:
+        pass
+        
+
     def process_tile(tile: FileCoordinate, 
                      source_a: dict[FileCoordinate, FileCoordinate], 
                      source_b: dict[FileCoordinate, FileCoordinate], 
@@ -119,7 +135,7 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         handler = SchemeFileHandler(Path("/workflow"))
         tile_dest_uri = handler.navigate(destination, dest_name)
         if not handler.file_exists(tile_dest_uri):
-            log.info(f"Copying tile {tile.name} from source a to destination")
+            log.info(f"Preparing tile {tile.name}")
             try:
                 file_a = source_a[tile]
                 file_b = source_b[tile]
@@ -128,17 +144,23 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
                 local_a = handler.download_file(file_a.uri)
                 local_b = handler.download_file(file_b.uri)
 
+                json_translate(local_a)
+                json_translate(local_b)
+
                 jsonl_a = index_workdir / f"a{tile.name}"
                 jsonl_b = index_workdir / f"b{tile.name}"
                 merged_cityjson = index_workdir / f"{dest_name}.city.json"
-                merged_zip = index_workdir / f"{dest_name}.zip"
+                merged_zip = index_workdir / f"{dest_name}.zip"              
 
-                subprocess.run(f"cjseq cat {local_a} > {jsonl_a}", shell=True, check=True)
-                subprocess.run(f"cjseq cat {local_b} > {jsonl_b}", shell=True, check=True)
-                subprocess.run(f"cat {jsonl_a} {jsonl_b} | cjseq collect > {merged_cityjson}", shell=True, check=True)
+                log.info(f"Merging {file_a.name} with {file_b.name}")
+                                
+                subprocess.run(f"cat {local_a} | cjseq cat > {jsonl_a}", shell=True, check=True)
+                subprocess.run(f"cat {local_b} | cjseq cat > {jsonl_b}", shell=True, check=True)
+                subprocess.run(f"cat {jsonl_a} <(tail -n +2 {jsonl_b}) | cjseq collect > {merged_cityjson}", shell=True, check=True)
 
                 zip_file(Path(merged_cityjson), Path(merged_zip))
                 handler.upload_file_direct(Path(merged_zip), tile_dest_uri)
+                log.info(f"Merged {file_a.name} with {file_b.name} uploaded {merged_zip}")
             except Exception as e:
                 log.info(f"Something went wrong while uploading {tile._key()}: {e}")
             finally:
@@ -150,9 +172,9 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         else:
             log.info(f"Tile {tile.name} already exists in destination")
 
-    log.info("Processing files that are in both, (meaning we have to merge them)")
     # Process in_both
     if in_both:
+        log.info("Processing files that are in both, (meaning we have to merge them)")
         # create lookup dicts so process_tile can index into source maps
         source_a_lookup = {obj: obj for obj in source_a_entries}
         source_b_lookup = {obj: obj for obj in source_b_entries}
