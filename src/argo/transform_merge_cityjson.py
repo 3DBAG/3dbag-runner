@@ -110,12 +110,9 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         with ThreadPoolExecutor() as executor:
             list(executor.map(copy_from_b, only_in_b))
 
-    def json_translate(path: Path, skip_cityjson_type: bool = False) -> None:
+    def json_translate(path: Path) -> None:
         with open(path, "r") as f:
             translate_cityjson(json.load(f))
-
-    def json_dump(content: dict[Any, Any], path: Path) -> None:
-        pass
 
     def process_tile(tile: FileCoordinate,
                      source_a: dict[FileCoordinate, FileCoordinate],

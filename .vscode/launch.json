@@ -245,6 +245,20 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Python: Debug create_quantized_mesh",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/src/main.py",
+            "python": "${workspaceFolder}/.venv/bin/python",
+            "args": [
+                "create_quantized_mesh",
+                "--source", "file://tempdir/input",
+                "--destination", "file://tempdir/pdok_index.gpkg",
+                "--temporary_directory", "tempdir"
+            ],
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Python: Debug remove_buildings",
             "type": "debugpy",
             "request": "launch",

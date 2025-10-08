@@ -14,6 +14,7 @@ from functools import partial
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Optional
+from osgeo import gdal
 
 from roofhelper.io.EntryProperties import EntryProperties
 
@@ -706,6 +707,94 @@ def splitgpkg(
     log.info("Done")
 
 
+def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
+    create_quantized_mesh(args.source, args.destination, args.temporary_directory)
+
+
+def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Path) -> None:
+    handler = SchemeFileHandler(temporary_directory)
+    tifs  = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
+
+    def _download(uri: EntryProperties) -> Path:
+        return handler.download_file(uri.full_uri)
+
+    with ThreadPoolExecutor() as p:
+        tiles = p.map(_download, tifs)
+
+    # "gdal_fillnodata.py -q -md ${md} ${tiff_file} ${tmp_dir}/${filename}_filled.tif"
+    warped_files: list[str] = []
+    for tile in tiles:
+        src_ds = gdal.Open(tile, gdal.GA_Update)
+        src_band = src_ds.GetRasterBand(1)
+        gdal.FillNodata(src_band, maxSeachDist=0)
+
+        tile_warped = f"{tile.stem}_filled_4326.tif"
+        # Use subprocess.run with explicit args so Python variables are used correctly
+        subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", str(tile), tile_warped], check=True)
+
+        warped_files.append(tile_warped)
+        os.unlink(tile)
+
+    with open("tif_4_vrt.txt", "w") as f:
+        f.writelines(warped_files)
+
+    # Build a VRT from our list of warped tifs into the temporary directory
+    vrt_path = os.path.join(str(temporary_directory), "ahn.vrt")
+    subprocess.run(["gdalbuildvrt", "-input_file_list", "tif_4_vrt.txt", vrt_path, "-a_srs", "EPSG:4326"], check=True)
+
+    start_zoom = 15
+    break_zoom = 9
+    end_zoom = 0
+
+    output_dir = tile_warped  # destination directory passed as second argument to this function
+    tmp_vrt = vrt_path
+
+    # Create quantized mesh tiles for level start_zoom to break_zoom using ctb-tile
+    try:
+        log.info(f"Running ctb-tile from {start_zoom} to level {break_zoom}...")
+        subprocess.run([
+            "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
+            "-e", str(break_zoom), "-s", str(start_zoom), "-o", str(output_dir), tmp_vrt
+        ], check=True)
+
+        # create layer.json file
+        log.info("Creating layer.json file...")
+        subprocess.run([
+            "ctb-tile", "-f", "Mesh", "-C", "-N",
+            "-e", str(end_zoom), "-s", str(start_zoom), "-c", "1", "-l", "-o", str(output_dir), tmp_vrt
+        ], check=True)
+
+        # Workaround: generate GeoTIFF tiles on level break_zoom
+        log.info(f"Creating GTiff tiles for level {break_zoom}...")
+        subprocess.run([
+            "ctb-tile", "-v", "--output-format", "GTiff", "--output-dir", str(temporary_directory),
+            "-s", str(break_zoom), "-e", str(break_zoom), tmp_vrt
+        ], check=True)
+
+        # Create VRT for GeoTIFF tiles on level break_zoom
+        level_vrt = os.path.join(str(temporary_directory), f"level{break_zoom}.vrt")
+        tiff_pattern = os.path.join(str(temporary_directory), str(break_zoom), "*", "*.tif")
+        tiff_files = glob.glob(tiff_pattern)
+        if tiff_files:
+            log.info(f"Create vrt for GTiff tiles on level {break_zoom}...")
+            subprocess.run(["gdalbuildvrt", level_vrt] + tiff_files, check=True)
+        else:
+            log.warning(f"No GTiff tiles found for level {break_zoom} (pattern: {tiff_pattern})")
+
+        # Make terrain tiles for level break_zoom-1 to 0
+        log.info(f"Run ctb-tile on level {break_zoom-1} to {end_zoom}")
+        subprocess.run([
+            "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
+            "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_dir), level_vrt
+        ], check=True)
+
+    except FileNotFoundError as e:
+        log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
+    except subprocess.CalledProcessError as e:
+        log.error(f"External command failed with exit code {e.returncode}: {e}")
+
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Tool for generating toml configuration files for roofer")
 
@@ -812,6 +901,12 @@ def main() -> None:
     create_pdok_index.add_argument("--url_prefix", type=str, required=True, help="%s_2022_3dgeluid_gebouwen.zip")
     create_pdok_index.add_argument("--temporary_directory", type=Path, required=True, help="Directory for temporary files")
     create_pdok_index.set_defaults(func=create_pdok_index_operation)
+
+    create_quantized_mesh = subparsers.add_parser("create_quantized_mesh", help="Create a quantized meshh")
+    create_quantized_mesh.add_argument("--source", type=str, required=True, help="handle://source")
+    create_quantized_mesh.add_argument("--destination", type=str, required=True, help="handle://destination")
+    create_quantized_mesh.add_argument("--temporary_directory", type=Path, required=True, help="Directory for temporary files")
+    create_quantized_mesh.set_defaults(func=create_quantized_mesh_operation)
 
     args = parser.parse_args()
     if args.command:
