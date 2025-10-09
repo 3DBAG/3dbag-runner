@@ -713,9 +713,12 @@ def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
 
 
 def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Path) -> None:
+    gdal.AllRegister()
+    gdal.UseExceptions()
+    
     handler = SchemeFileHandler(temporary_directory)
     tifs = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
-    gdal.AllRegister()
+    
     def _download(uri: EntryProperties) -> Path:
         return handler.download_file(uri.full_uri)
 

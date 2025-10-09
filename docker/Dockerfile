@@ -46,13 +46,12 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install packages
 RUN uv sync
 
-RUN git clone https://github.com/ahuarte47/cesium-terrain-builder
+RUN git clone https://github.com/3DBAG/cesium-terrain-builder
 RUN cd cesium-terrain-builder && \
     mkdir build && cd build && \ 
     cmake .. && \
     make && \
-    cp tools/ctb-tile /usr/bin/ctb-tile && \ 
-    cp src/libctb.so /usr/local/lib
+    cp tools/ctb-tile /usr/bin/ctb-tile
 
 # Install Node.js and npm packages with cleanup
 RUN curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && \
