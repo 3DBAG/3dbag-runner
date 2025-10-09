@@ -56,7 +56,7 @@ format:
 
 # Docker
 docker-build:
-	sudo docker build -f docker/Dockerfile -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
+	sudo docker build -f docker/Dockerfile --progress=plain -t $(DOCKER_IMAGE):$(DOCKER_TAG) .
 
 # Cleanup
 clean:
