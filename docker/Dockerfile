@@ -6,7 +6,7 @@ RUN wget https://cdn.proj.org/nl_nsgi_nlgeo2018.tif -O /usr/local/share/proj/nl_
 
 # Install system dependencies with cleanup in single layer
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl
+    apt-get install -y --no-install-recommends curl libffi-dev
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV GF_PLUGIN_FOLDER="/usr/local/lib/geoflow-plugins"
@@ -17,6 +17,7 @@ COPY docker/binaries/roofer /usr/bin/roofer
 COPY docker/binaries/cjseq /usr/bin/cjseq
 COPY docker/binaries/reconstruct /usr/bin/reconstruct
 COPY docker/binaries/tyler /usr/bin/tyler
+COPY docker/binaries/ctb-tile /usr/bin/ctb-tile
 
 # Strip debug symbols from binaries to reduce size
 RUN strip /usr/bin/roofer /usr/bin/cjseq /usr/bin/reconstruct /usr/bin/tyler
@@ -36,6 +37,13 @@ COPY docker/metadata.city.json /metadata.city.json
 COPY docker/binaries/proj.db /usr/share/proj/proj.db
 COPY docker/ahn.json /ahn.json
 
+# Install rust
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
+
+# Add Rust to PATH
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install packages
 RUN uv sync
 
 # Install Node.js and npm packages with cleanup

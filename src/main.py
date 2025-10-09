@@ -726,7 +726,7 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
     for tile in tiles:
         src_ds = gdal.Open(tile, gdal.GA_Update)
         src_band = src_ds.GetRasterBand(1)
-        gdal.FillNodata(src_band, maxSeachDist=0)
+        gdal.FillNodata(src_band, maxSearchDist=0)
 
         tile_warped = f"{tile.stem}_filled_4326.tif"
         # Use subprocess.run with explicit args so Python variables are used correctly
@@ -746,29 +746,30 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
     break_zoom = 9
     end_zoom = 0
 
-    output_dir = tile_warped  # destination directory passed as second argument to this function
-    tmp_vrt = vrt_path
+    output_directory: Path = temporary_directory / "quantized_mesh"
+    os.makedirs(output_directory, exist_ok=True)
 
     # Create quantized mesh tiles for level start_zoom to break_zoom using ctb-tile
+    # You can find ctb-tile on https://github.com/geo-data/cesium-terrain-builder (it's an old executable...)
     try:
         log.info(f"Running ctb-tile from {start_zoom} to level {break_zoom}...")
         subprocess.run([
             "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
-            "-e", str(break_zoom), "-s", str(start_zoom), "-o", str(output_dir), tmp_vrt
+            "-e", str(break_zoom), "-s", str(start_zoom), "-o", str(output_directory), vrt_path
         ], check=True)
 
         # create layer.json file
         log.info("Creating layer.json file...")
         subprocess.run([
             "ctb-tile", "-f", "Mesh", "-C", "-N",
-            "-e", str(end_zoom), "-s", str(start_zoom), "-c", "1", "-l", "-o", str(output_dir), tmp_vrt
+            "-e", str(end_zoom), "-s", str(start_zoom), "-c", "1", "-l", "-o", str(output_directory), vrt_path
         ], check=True)
 
         # Workaround: generate GeoTIFF tiles on level break_zoom
         log.info(f"Creating GTiff tiles for level {break_zoom}...")
         subprocess.run([
             "ctb-tile", "-v", "--output-format", "GTiff", "--output-dir", str(temporary_directory),
-            "-s", str(break_zoom), "-e", str(break_zoom), tmp_vrt
+            "-s", str(break_zoom), "-e", str(break_zoom), vrt_path
         ], check=True)
 
         # Create VRT for GeoTIFF tiles on level break_zoom
@@ -785,7 +786,7 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
         log.info(f"Run ctb-tile on level {break_zoom - 1} to {end_zoom}")
         subprocess.run([
             "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
-            "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_dir), level_vrt
+            "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_directory), level_vrt
         ], check=True)
 
     except FileNotFoundError as e:
