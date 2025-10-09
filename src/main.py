@@ -1,4 +1,5 @@
 import argparse
+from collections.abc import Iterator
 import glob
 import json
 import logging
@@ -719,12 +720,12 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
         return handler.download_file(uri.full_uri)
 
     with ThreadPoolExecutor() as p:
-        tiles = p.map(_download, tifs)
+        tiles: Iterator[Path] = p.map(_download, tifs)
 
     # "gdal_fillnodata.py -q -md ${md} ${tiff_file} ${tmp_dir}/${filename}_filled.tif"
     warped_files: list[str] = []
     for tile in tiles:
-        src_ds = gdal.Open(tile, gdal.GA_Update)
+        src_ds = gdal.Open(str(tile), gdal.GA_Update)
         src_band = src_ds.GetRasterBand(1)
         gdal.FillNodata(src_band, maxSearchDist=0)
 
