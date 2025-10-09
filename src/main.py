@@ -715,7 +715,7 @@ def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
 def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Path) -> None:
     handler = SchemeFileHandler(temporary_directory)
     tifs = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
-
+    gdal.AllRegister()
     def _download(uri: EntryProperties) -> Path:
         return handler.download_file(uri.full_uri)
 
@@ -725,23 +725,30 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
     # "gdal_fillnodata.py -q -md ${md} ${tiff_file} ${tmp_dir}/${filename}_filled.tif"
     warped_files: list[str] = []
     for tile in tiles:
-        src_ds = gdal.Open(str(tile), gdal.GA_Update)
-        src_band = src_ds.GetRasterBand(1)
-        gdal.FillNodata(src_band, maxSearchDist=0)
+        src_ds = gdal.Open(str(tile), gdal.GA_ReadOnly)
+        
+        tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
+        driver = gdal.GetDriverByName(src_ds.GetDriver().ShortName)
+        dst = driver.CreateCopy(tile_filled, src_ds, 0)
+        dst_band = dst.GetRasterBand(1)
 
-        tile_warped = f"{tile.stem}_filled_4326.tif"
+        gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=100, smoothingIterations=0)
+
+        tile_warped = f"{temporary_directory}/{tile.stem}_wraped_4326.tif"
         # Use subprocess.run with explicit args so Python variables are used correctly
-        subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", str(tile), tile_warped], check=True)
+        subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
 
         warped_files.append(tile_warped)
         os.unlink(tile)
+        os.unlink(tile_filled)
 
-    with open("tif_4_vrt.txt", "w") as f:
+    file_list: str = f"{temporary_directory}/tif_4_vrt.txt"
+    with open(file_list, "w") as f:
         f.writelines(warped_files)
 
     # Build a VRT from our list of warped tifs into the temporary directory
     vrt_path = os.path.join(str(temporary_directory), "ahn.vrt")
-    subprocess.run(["gdalbuildvrt", "-input_file_list", "tif_4_vrt.txt", vrt_path, "-a_srs", "EPSG:4326"], check=True)
+    subprocess.run(["gdalbuildvrt", "-input_file_list", file_list, vrt_path, "-a_srs", "EPSG:4326"], check=True)
 
     start_zoom = 15
     break_zoom = 9
