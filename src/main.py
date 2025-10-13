@@ -719,13 +719,13 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
     handler = SchemeFileHandler(temporary_directory)
     tifs = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
 
-    def _download(uri: EntryProperties) -> Path:
-        return handler.download_file(uri.full_uri)
+    def _download(entry: EntryProperties) -> Path:
+        log.info(f"Downloading {entry.name}")
+        return handler.download_file(entry.full_uri)
 
     with ThreadPoolExecutor() as p:
         tiles: Iterator[Path] = p.map(_download, tifs)
 
-    # "gdal_fillnodata.py -q -md ${md} ${tiff_file} ${tmp_dir}/${filename}_filled.tif"
     warped_files: list[str] = []
     for tile in tiles:
         src_ds = gdal.Open(str(tile), gdal.GA_ReadOnly)
@@ -734,11 +734,11 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         driver = gdal.GetDriverByName(src_ds.GetDriver().ShortName)
         dst = driver.CreateCopy(tile_filled, src_ds, 0)
         dst_band = dst.GetRasterBand(1)
-
+        
+        log.info(f"Fill no data and warping {tile.stem}")
         gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=400, smoothingIterations=0)
 
         tile_warped = f"{temporary_directory}/{tile.stem}_warped_4326.tif"
-        # Use subprocess.run with explicit args so Python variables are used correctly
         subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
 
         warped_files.append(tile_warped)

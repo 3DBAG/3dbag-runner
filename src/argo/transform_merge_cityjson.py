@@ -112,7 +112,10 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
 
     def json_translate(path: Path) -> None:
         with open(path, "r") as f:
-            translate_cityjson(json.load(f))
+            t = translate_cityjson(json.load(f))
+        
+        with open(path, "w") as f:
+            json.dump(t, f)
 
     def process_tile(tile: FileCoordinate,
                      source_a: dict[FileCoordinate, FileCoordinate],
@@ -128,7 +131,7 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         index_workdir = Path(f"/workflow/{index}")
         index_workdir.mkdir(parents=True, exist_ok=True)
         handler = SchemeFileHandler(Path("/workflow"))
-        tile_dest_uri = handler.navigate(destination, dest_name)
+        tile_dest_uri = handler.navigate(destination, dest_name + ".zip") 
         if not handler.file_exists(tile_dest_uri):
             log.info(f"Preparing tile {tile.name}")
             try:
@@ -151,7 +154,7 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
 
                 subprocess.run(f"cat {local_a} | cjseq cat > {jsonl_a}", shell=True, check=True)
                 subprocess.run(f"cat {local_b} | cjseq cat > {jsonl_b}", shell=True, check=True)
-                subprocess.run(f"cat {jsonl_a} <(tail -n +2 {jsonl_b}) | cjseq collect > {merged_cityjson}", shell=True, check=True)
+                subprocess.run(f"(cat {jsonl_a}; tail -n +2 {jsonl_b}) | cjseq collect > {merged_cityjson}", shell=True, check=True)
 
                 zip_file(Path(merged_cityjson), Path(merged_zip))
                 handler.upload_file_direct(Path(merged_zip), tile_dest_uri)
