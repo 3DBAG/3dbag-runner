@@ -712,13 +712,13 @@ def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
     create_quantized_mesh(args.source, args.destination, args.temporary_directory)
 
 
-def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Path) -> None:
+def create_quantized_mesh(source: str, destination: str, temporary_directory: Path) -> None:
     gdal.AllRegister()
     gdal.UseExceptions()
-    
+
     handler = SchemeFileHandler(temporary_directory)
     tifs = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
-    
+
     def _download(uri: EntryProperties) -> Path:
         return handler.download_file(uri.full_uri)
 
@@ -729,7 +729,7 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
     warped_files: list[str] = []
     for tile in tiles:
         src_ds = gdal.Open(str(tile), gdal.GA_ReadOnly)
-        
+
         tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
         driver = gdal.GetDriverByName(src_ds.GetDriver().ShortName)
         dst = driver.CreateCopy(tile_filled, src_ds, 0)
@@ -737,7 +737,7 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
 
         gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=100, smoothingIterations=0)
 
-        tile_warped = f"{temporary_directory}/{tile.stem}_wraped_4326.tif"
+        tile_warped = f"{temporary_directory}/{tile.stem}_warped_4326.tif"
         # Use subprocess.run with explicit args so Python variables are used correctly
         subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
 
@@ -800,6 +800,7 @@ def create_quantized_mesh(source: str, tile_warped: str, temporary_directory: Pa
             "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_directory), level_vrt
         ], check=True)
 
+        handler.upload_folder(output_directory, destination)
     except FileNotFoundError as e:
         log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
     except subprocess.CalledProcessError as e:

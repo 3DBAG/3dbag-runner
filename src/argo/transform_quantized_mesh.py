@@ -9,7 +9,7 @@ def workerfunc(source: str, destination: str) -> None:
 
     create_quantized_mesh(
         source=source,
-        tile_warped=destination,
+        destination=destination,
         temporary_directory=Path("/workflow")
     )
 
