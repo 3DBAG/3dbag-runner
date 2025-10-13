@@ -735,7 +735,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         dst = driver.CreateCopy(tile_filled, src_ds, 0)
         dst_band = dst.GetRasterBand(1)
 
-        gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=100, smoothingIterations=0)
+        gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=400, smoothingIterations=0)
 
         tile_warped = f"{temporary_directory}/{tile.stem}_warped_4326.tif"
         # Use subprocess.run with explicit args so Python variables are used correctly
