@@ -1,4 +1,4 @@
-FROM 3dgi/geoflow-bundle-builder:2025.08.07 AS builder
+FROM 3dgi/geoflow-bundle-builder:2025.09.01 AS builder
 
 # Download Dutch transformation grids
 RUN wget https://cdn.proj.org/nl_nsgi_nlgeo2018.tif -O /usr/local/share/proj/nl_nsgi_nlgeo2018.tif && \
@@ -46,9 +46,12 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install packages
 RUN uv sync
 
-RUN git clone https://github.com/3DBAG/cesium-terrain-builder
+RUN git clone https://github.com/3DBAG/cesium-terrain-builder && \
+    cd cesium-terrain-builder && \
+    git checkout --quiet 307b5f1263f9489a8831548b04be018023f2f82e
+
 RUN cd cesium-terrain-builder && \
-    mkdir build && cd build && \ 
+    mkdir build && cd build && \
     cmake .. && \
     make && \
     cp tools/ctb-tile /usr/bin/ctb-tile
