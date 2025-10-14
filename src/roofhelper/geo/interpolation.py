@@ -8,6 +8,7 @@ from numpy.typing import NDArray
 from osgeo import gdal
 from scipy.spatial import KDTree
 
+
 def _get_nodata_value(band: gdal.Band) -> Optional[float]:
     nodata = band.GetNoDataValue()
     # GDAL may return None if undefined
