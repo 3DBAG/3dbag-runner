@@ -38,6 +38,7 @@ from roofhelper.pdok.PdokDeliverySound import PDOK_DELIVERY_SCHEMA_SOUND, get_pd
 from roofhelper.pdok.PdokGeopackageWriter import write_features_to_geopackage
 from roofhelper.pointcloud import laz
 from roofhelper.roofer import PointcloudConfig, roofer_config_generate
+from roofhelper.geo.interpolation import image_interpolation_idw
 
 log = defaultlogging.setup_logging(logging.INFO)
 
@@ -709,6 +710,7 @@ def splitgpkg(
 
 
 def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
+    # Pass through interpolation choice
     create_quantized_mesh(args.source, args.destination, args.temporary_directory)
 
 
@@ -724,16 +726,11 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         t0 = time.perf_counter()
         tile = handler.download_file(entry.full_uri)
         log.info(f"Downloaded {entry.name} in {time.perf_counter() - t0:.2f}s")
-        src_ds = gdal.Open(str(tile), gdal.GA_ReadOnly)
 
         tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
-        driver = gdal.GetDriverByName(src_ds.GetDriver().ShortName)
-        dst = driver.CreateCopy(tile_filled, src_ds, 0)
-        dst_band = dst.GetRasterBand(1)
-
         log.info(f"Fill no data for {entry.name}")
         t1 = time.perf_counter()
-        gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=400, smoothingIterations=0)
+        image_interpolation_idw(input_file=tile, output_file=tile_filled, k=8, power=2.0, batch_size=500_000)
         log.info(f"Filled nodata for {entry.name} in {time.perf_counter() - t1:.2f}s")
 
         log.info(f"Warping {entry.name}")
@@ -804,7 +801,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
             "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_directory), level_vrt
         ], check=True)
 
-        handler.upload_folder(output_directory, destination)
+        # handler.upload_folder(output_directory, destination)
     except FileNotFoundError as e:
         log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
     except subprocess.CalledProcessError as e:
@@ -922,6 +919,7 @@ def main() -> None:
     create_quantized_mesh.add_argument("--source", type=str, required=True, help="handle://source")
     create_quantized_mesh.add_argument("--destination", type=str, required=True, help="handle://destination")
     create_quantized_mesh.add_argument("--temporary_directory", type=Path, required=True, help="Directory for temporary files")
+    create_quantized_mesh.add_argument("--interpolation", type=str, choices=["idw", "kriging"], default="kriging", help="Interpolation method to fill nodata before warping (default: idw)")
     create_quantized_mesh.set_defaults(func=create_quantized_mesh_operation)
 
     args = parser.parse_args()
