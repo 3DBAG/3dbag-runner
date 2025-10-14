@@ -113,7 +113,7 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
     def json_translate(path: Path) -> None:
         with open(path, "r") as f:
             t = translate_cityjson(json.load(f))
-        
+
         with open(path, "w") as f:
             json.dump(t, f)
 
@@ -131,7 +131,7 @@ def workerfunc(source_a: str, source_b: str, destination: str, destination_name_
         index_workdir = Path(f"/workflow/{index}")
         index_workdir.mkdir(parents=True, exist_ok=True)
         handler = SchemeFileHandler(Path("/workflow"))
-        tile_dest_uri = handler.navigate(destination, dest_name + ".zip") 
+        tile_dest_uri = handler.navigate(destination, dest_name + ".zip")
         if not handler.file_exists(tile_dest_uri):
             log.info(f"Preparing tile {tile.name}")
             try:

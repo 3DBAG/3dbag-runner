@@ -1,5 +1,4 @@
 import argparse
-from collections.abc import Iterator
 import glob
 import json
 import logging
@@ -731,7 +730,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         driver = gdal.GetDriverByName(src_ds.GetDriver().ShortName)
         dst = driver.CreateCopy(tile_filled, src_ds, 0)
         dst_band = dst.GetRasterBand(1)
-        
+
         log.info(f"Fill no data for {entry.name}")
         t1 = time.perf_counter()
         gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=400, smoothingIterations=0)
