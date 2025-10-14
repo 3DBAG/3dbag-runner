@@ -17,7 +17,6 @@ dependencies = [
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pyjwt" },
-    { name = "pykrige" },
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "requests" },
@@ -50,7 +49,6 @@ requires-dist = [
     { name = "mypy", specifier = ">=1.15.0" },
     { name = "pandas-stubs", specifier = ">=2.2.3.250308" },
     { name = "pyjwt", specifier = ">=2.10.1" },
-    { name = "pykrige", specifier = ">=1.7.2" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
     { name = "requests", specifier = ">=2.32.3" },
@@ -692,16 +690,6 @@ sdist = { url = "https://files.pythonhosted.org/packages/e7/46/bd74733ff23167559
 wheels = [
     { url = "https://files.pythonhosted.org/packages/61/ad/689f02752eeec26aed679477e80e632ef1b682313be70793d798c1d5fc8f/PyJWT-2.10.1-py3-none-any.whl", hash = "sha256:dcdd193e30abefd5debf142f9adfcdd2b58004e644f25406ffaebd50bd98dacb", size = 22997, upload-time = "2024-11-28T03:43:27.893Z" },
 ]
-
-[[package]]
-name = "pykrige"
-version = "1.7.2"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "numpy" },
-    { name = "scipy" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ea/00/d815833441d8c52bf4a6930952e77d3de77d0bf67b3202ccc12dabdae279/pykrige-1.7.2.tar.gz", hash = "sha256:25b45a4173714c0b62098d19019404cb3978fa8bd8abae9ba55a272a53979e35", size = 618688, upload-time = "2024-05-27T22:29:22.519Z" }
 
 [[package]]
 name = "pyogrio"

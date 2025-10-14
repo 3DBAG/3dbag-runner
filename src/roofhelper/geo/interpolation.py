@@ -8,13 +8,6 @@ from numpy.typing import NDArray
 from osgeo import gdal
 from scipy.spatial import KDTree
 
-try:
-    # Optional dependency; only needed when using kriging interpolation
-    from pykrige.ok import OrdinaryKriging  # type: ignore
-except Exception:  # pragma: no cover - optional import
-    OrdinaryKriging = None  # type: ignore
-
-
 def _get_nodata_value(band: gdal.Band) -> Optional[float]:
     nodata = band.GetNoDataValue()
     # GDAL may return None if undefined
