@@ -717,17 +717,10 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
     gdal.UseExceptions()
 
     handler = SchemeFileHandler(temporary_directory)
-    tifs = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
+    entries = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
 
-    def _download(entry: EntryProperties) -> Path:
-        log.info(f"Downloading {entry.name}")
-        return handler.download_file(entry.full_uri)
-
-    with ThreadPoolExecutor() as p:
-        tiles: Iterator[Path] = p.map(_download, tifs)
-
-    warped_files: list[str] = []
-    for tile in tiles:
+    def _warp_and_fill_images(entry: EntryProperties) -> str:
+        tile = handler.download_file(entry.full_uri)
         src_ds = gdal.Open(str(tile), gdal.GA_ReadOnly)
 
         tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
@@ -741,9 +734,12 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         tile_warped = f"{temporary_directory}/{tile.stem}_warped_4326.tif"
         subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
 
-        warped_files.append(tile_warped)
         os.unlink(tile)
         os.unlink(tile_filled)
+        return tile_warped
+
+    with ThreadPoolExecutor() as p:
+        warped_files = p.map(_warp_and_fill_images, entries)
 
     file_list: str = f"{temporary_directory}/tif_4_vrt.txt"
     with open(file_list, "w") as f:
