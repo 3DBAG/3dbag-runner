@@ -9,6 +9,7 @@ import shutil
 import subprocess
 import threading
 import re
+import time
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from functools import partial
@@ -720,7 +721,10 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
     entries = handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
 
     def _warp_and_fill_images(entry: EntryProperties) -> str:
+        log.info(f"Downloading {entry.name}")
+        t0 = time.perf_counter()
         tile = handler.download_file(entry.full_uri)
+        log.info(f"Downloaded {entry.name} in {time.perf_counter() - t0:.2f}s")
         src_ds = gdal.Open(str(tile), gdal.GA_ReadOnly)
 
         tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
@@ -728,17 +732,22 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         dst = driver.CreateCopy(tile_filled, src_ds, 0)
         dst_band = dst.GetRasterBand(1)
         
-        log.info(f"Fill no data and warping {tile.stem}")
+        log.info(f"Fill no data for {entry.name}")
+        t1 = time.perf_counter()
         gdal.FillNodata(dst_band, maskBand=None, maxSearchDist=400, smoothingIterations=0)
+        log.info(f"Filled nodata for {entry.name} in {time.perf_counter() - t1:.2f}s")
 
+        log.info(f"Warping {entry.name}")
         tile_warped = f"{temporary_directory}/{tile.stem}_warped_4326.tif"
+        t2 = time.perf_counter()
         subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
+        log.info(f"Warped {entry.name} in {time.perf_counter() - t2:.2f}s")
 
         os.unlink(tile)
         os.unlink(tile_filled)
         return tile_warped
 
-    with ThreadPoolExecutor() as p:
+    with ThreadPoolExecutor(max_workers=os.cpu_count()) as p:
         warped_files = p.map(_warp_and_fill_images, entries)
 
     file_list: str = f"{temporary_directory}/tif_4_vrt.txt"
