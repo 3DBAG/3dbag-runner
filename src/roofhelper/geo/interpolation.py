@@ -34,12 +34,15 @@ def image_interpolation_idw(
         Path to write the filled raster. If equal to input_file, writes in place
         when possible; otherwise, creates a copy and writes there.
     k: int
-        Number of nearest neighbors to use.
+        Number of nearest neighbors to use (minimum 2 for meaningful IDW).
     power: float
         IDW power parameter; larger values emphasize nearer neighbors.
     batch_size: int
         Process unknown pixels in batches to limit memory usage.
     """
+
+    if k < 2:
+        raise ValueError(f"k must be at least 2 for IDW interpolation, got {k}")
 
     # Open source dataset and read band array
     src_ds = gdal.Open(str(input_file), gdal.GA_ReadOnly)
@@ -49,11 +52,12 @@ def image_interpolation_idw(
     band = src_ds.GetRasterBand(1)
     arr = _read_band_float64(band)
 
+    # Require a nodata value to be defined in the raster
     nodata = _get_nodata_value(band)
     if nodata is None:
-        mask_known = np.isfinite(arr)
-    else:
-        mask_known = arr != nodata
+        raise ValueError(f"No nodata value defined in raster: {input_file}")
+
+    mask_known = arr != nodata
 
     # If nothing to fill, just copy/write through
     if np.all(mask_known):
@@ -64,45 +68,40 @@ def image_interpolation_idw(
     coords_known = np.column_stack((x[mask_known], y[mask_known]))
     values_known = arr[mask_known]
 
-    if coords_known.size == 0:
-        # No known values; nothing to interpolate
-        _write_output(src_ds, arr, input_file, output_file)
-        return
-
-    # Build KD-tree for known pixels
+    # Build KD-tree for spatial neighbor queries on known pixels
     tree = KDTree(coords_known)
+
+    # Identify unknown pixels that need interpolation
     unknown_mask = ~mask_known
     coords_unknown = np.column_stack((x[unknown_mask], y[unknown_mask]))
 
-    effective_k = max(1, min(k, len(values_known)))
+    # Limit k to the number of available known values (minimum 2 already validated)
+    effective_k = min(k, len(values_known))
 
-    # Interpolate in batches to control memory
+    # Interpolate in batches to control memory usage
     filled_arr = arr.copy()
     n_unknown = coords_unknown.shape[0]
-    eps = 1e-12
 
     for start in range(0, n_unknown, batch_size):
         end = min(start + batch_size, n_unknown)
-        batch = coords_unknown[start:end]
-        dist, idx = tree.query(batch, k=effective_k)
-        # Ensure numpy arrays for consistent typing/operations
-        dist = np.asarray(dist)
-        idx = np.asarray(idx)
+        batch_coords = coords_unknown[start:end]
 
-        # Ensure correct dimensions when k==1
-        if effective_k == 1:
-            dist = dist[:, np.newaxis]
-            idx = idx[:, np.newaxis]
+        # Query KD-tree for k nearest neighbors
+        distances, indices = tree.query(batch_coords, k=effective_k, workers=-1)
 
-        w = 1.0 / ((dist ** power) + eps)
-        vals = values_known[idx]
-        num = np.sum(w * vals, axis=1)
-        den = np.sum(w, axis=1)
-        filled_vals = num / den
+        # Calculate IDW weights: w_i = 1 / d_i^power
+        weights = 1.0 / (distances ** power)
+        neighbor_values = values_known[indices]
 
-        # Assign back into array
-        uy, ux = coords_unknown[start:end, 1], coords_unknown[start:end, 0]
-        filled_arr[uy, ux] = filled_vals
+        # Weighted average: sum(w_i * v_i) / sum(w_i)
+        numerator = np.sum(weights * neighbor_values, axis=1)
+        denominator = np.sum(weights, axis=1)
+        filled_values = numerator / denominator
+
+        # Assign interpolated values back to their pixel positions
+        batch_y = batch_coords[:, 1]
+        batch_x = batch_coords[:, 0]
+        filled_arr[batch_y, batch_x] = filled_values
 
     _write_output(src_ds, filled_arr, input_file, output_file)
 

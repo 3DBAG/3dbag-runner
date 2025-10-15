@@ -730,7 +730,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
         log.info(f"Fill no data for {entry.name}")
         t1 = time.perf_counter()
-        image_interpolation_idw(input_file=tile, output_file=tile_filled, k=8, power=2.0, batch_size=500_000)
+        image_interpolation_idw(input_file=tile, output_file=tile_filled, k=8, power=2.0, batch_size=500_000)  # batch size has the most influence on memory usage
         log.info(f"Filled nodata for {entry.name} in {time.perf_counter() - t1:.2f}s")
 
         log.info(f"Warping {entry.name}")
@@ -747,7 +747,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         parallel = os.cpu_count()
 
     with ThreadPoolExecutor(max_workers=parallel) as p:
-        warped_files = p.map(_warp_and_fill_images, entries)
+        warped_files = list(p.map(_warp_and_fill_images, entries))
 
     file_list: str = f"{temporary_directory}/tif_4_vrt.txt"
     with open(file_list, "w") as f:
