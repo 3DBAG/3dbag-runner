@@ -711,10 +711,10 @@ def splitgpkg(
 
 def create_quantized_mesh_operation(args: argparse.Namespace) -> None:
     # Pass through interpolation choice
-    create_quantized_mesh(args.source, args.destination, args.temporary_directory)
+    create_quantized_mesh(args.source, args.destination, args.temporary_directory, args.parallel)
 
 
-def create_quantized_mesh(source: str, destination: str, temporary_directory: Path) -> None:
+def create_quantized_mesh(source: str, destination: str, temporary_directory: Path, parallel: Optional[int] = os.cpu_count()) -> None:
     gdal.AllRegister()
     gdal.UseExceptions()
 
@@ -743,7 +743,10 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         os.unlink(tile_filled)
         return tile_warped
 
-    with ThreadPoolExecutor(max_workers=os.cpu_count()) as p:
+    if parallel == None:
+        parallel = os.cpu_count()
+
+    with ThreadPoolExecutor(max_workers=parallel) as p:
         warped_files = p.map(_warp_and_fill_images, entries)
 
     file_list: str = f"{temporary_directory}/tif_4_vrt.txt"
@@ -801,7 +804,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
             "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_directory), level_vrt
         ], check=True)
 
-        # handler.upload_folder(output_directory, destination)
+        handler.upload_folder(output_directory, destination)
     except FileNotFoundError as e:
         log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
     except subprocess.CalledProcessError as e:
@@ -919,7 +922,7 @@ def main() -> None:
     create_quantized_mesh.add_argument("--source", type=str, required=True, help="handle://source")
     create_quantized_mesh.add_argument("--destination", type=str, required=True, help="handle://destination")
     create_quantized_mesh.add_argument("--temporary_directory", type=Path, required=True, help="Directory for temporary files")
-    create_quantized_mesh.add_argument("--interpolation", type=str, choices=["idw", "kriging"], default="kriging", help="Interpolation method to fill nodata before warping (default: idw)")
+    create_quantized_mesh.add_argument("--parallel", type=int, default=None, required=False, help="Amount of parallel threads to run")
     create_quantized_mesh.set_defaults(func=create_quantized_mesh_operation)
 
     args = parser.parse_args()

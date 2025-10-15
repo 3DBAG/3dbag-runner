@@ -10,7 +10,8 @@ def workerfunc(source: str, destination: str) -> None:
     create_quantized_mesh(
         source=source,
         destination=destination,
-        temporary_directory=Path("/workflow")
+        temporary_directory=Path("/workflow"),
+        parallel=8
     )
 
 
