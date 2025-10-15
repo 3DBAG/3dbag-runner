@@ -743,7 +743,7 @@ def create_quantized_mesh(source: str, destination: str, temporary_directory: Pa
         os.unlink(tile_filled)
         return tile_warped
 
-    if parallel == None:
+    if parallel is None:
         parallel = os.cpu_count()
 
     with ThreadPoolExecutor(max_workers=parallel) as p:
