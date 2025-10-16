@@ -79,7 +79,6 @@ def image_interpolation_idw(
     effective_k = min(k, len(values_known))
 
     # Interpolate in batches to control memory usage
-    filled_arr = arr.copy()
     n_unknown = coords_unknown.shape[0]
 
     for start in range(0, n_unknown, batch_size):
@@ -101,9 +100,9 @@ def image_interpolation_idw(
         # Assign interpolated values back to their pixel positions
         batch_y = batch_coords[:, 1]
         batch_x = batch_coords[:, 0]
-        filled_arr[batch_y, batch_x] = filled_values
+        arr[batch_y, batch_x] = filled_values
 
-    _write_output(src_ds, filled_arr, input_file, output_file)
+    _write_output(src_ds, arr, input_file, output_file)
 
 
 def _write_output(
