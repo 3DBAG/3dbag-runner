@@ -190,16 +190,22 @@ def generate_workflow() -> None:
                                entrypoint="dag",
                                arguments=[
                                    Parameter(name="source", default="azure://<sas>"),
-                                   Parameter(name="destination", default="azure://<sas>")
+                                   Parameter(name="destination", default="azure://<sas>"),
+                                   Parameter(name="intermediate", default="azure://<sas>"),
+                                   Parameter(name="workercount", default="1") 
     ]) as w:
-        with DAG(name="dag", inputs=[Parameter(name="source"), Parameter(name="destination")]):
+        with DAG(name="dag", inputs=[Parameter(name="source"), 
+                                     Parameter(name="destination"),
+                                     Parameter(name="intermediate"),
+                                     Parameter(name="workercount")]):
             queue: Script = queuefunc(arguments={  # type: ignore
-                "source": "{{inputs.parameters.workercount}}",
-                "intermediate": "{{inputs.parameters.footprints}}"})  # type: ignore
+                "source": "{{inputs.parameters.source}}",
+                "intermediate": "{{inputs.parameters.intermediate}}",
+                "workercount": "{{inputs.parameters.workercount}}"})  # type: ignore
 
             worker = workerfunc(with_param=queue.result, arguments=[queue.get_artifact("queue").with_name("queue"), {  # type: ignore
                                                                     "workerid": "{{item}}",
-                                                                    "intermediate": "{{inputs.parameters.footprints}}"}])  # type: ignore
+                                                                    "intermediate": "{{inputs.parameters.intermediate}}"}])  # type: ignore
             merger = mergerfunc(arguments={  # type: ignore
                 "intermediate": "{{inputs.parameters.intermediate}}",
                 "destination": "{{inputs.parameters.destination}}"
