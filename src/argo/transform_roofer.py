@@ -3,8 +3,6 @@ from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy
 
 from argo.argodefaults import argo_worker, MEMORY_EMPTY_DIR, get_workflow_template
 
-# Create a list to store the futures
-
 
 @argo_worker(outputs=Artifact(name="queue", path="/workflow/queue.json"), volumes=MEMORY_EMPTY_DIR)
 def queuefunc(workercount: int, footprints: str, cityjsonfolder: str, year: int) -> None:

@@ -59,6 +59,10 @@ def image_interpolation_idw(
 
     mask_known = arr != nodata
 
+    # If no known values exist, cannot interpolate
+    if len(mask_known) == 0 or not np.any(mask_known):
+        return
+
     # If nothing to fill, just copy/write through
     if np.all(mask_known):
         _write_output(src_ds, arr, input_file, output_file)
