@@ -29,7 +29,7 @@ def queuefunc(source: str, intermediate: str, workercount: int) -> None:
 
         log.info(f"Queued {entry.name}")
         queue.append({"worker": worker % workercount,  # We can also do this implicitly by list index, but lets make it explicit to we can choose based
-                      "file": entry})
+                      "file": entry.name})
 
     with open("/workflow/queue.json", 'w') as f:
         json.dump(queue, f)
@@ -39,7 +39,7 @@ def queuefunc(source: str, intermediate: str, workercount: int) -> None:
 
 
 @argo_worker(inputs=Artifact(name="queue", path="/workflow/queue.json"), retry_strategy=RetryStrategy(limit=5))  # type: ignore
-def workerfunc(workerid: int, intermediate: str) -> None:
+def workerfunc(workerid: int, source: str, intermediate: str) -> None:
     import json
     import logging
     import os
@@ -52,7 +52,7 @@ def workerfunc(workerid: int, intermediate: str) -> None:
 
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.geo.interpolation import image_interpolation_idw
-    from roofhelper.io import EntryProperties, SchemeFileHandler
+    from roofhelper.io import SchemeFileHandler
 
     gdal.AllRegister()
     gdal.UseExceptions()
@@ -66,32 +66,32 @@ def workerfunc(workerid: int, intermediate: str) -> None:
         global_queue = json.load(f)
 
     log.info(f"Done reading the global queue, it contains {len(global_queue)} items")
-    local_queue = [EntryProperties(**x["file"]) for x in global_queue if int(x["worker"]) == workerid]
+    local_queue = [str(x["file"]) for x in global_queue if int(x["worker"]) == workerid]
     log.info(f"Worker has to process {len(local_queue)} items of the queue")
 
     handler = SchemeFileHandler(temporary_directory)
 
-    def _process_task(index: int, entry: EntryProperties) -> None:
-        log.info(f"Processing [{index}/{len(local_queue)}] {entry.name}.")
+    def _process_task(index: int, name: str) -> None:
+        log.info(f"Processing [{index}/{len(local_queue)}] {name}.")
 
-        log.info(f"Downloading {entry.name}")
+        log.info(f"Downloading {name}")
         t0 = time.perf_counter()
-        tile = handler.download_file(entry.full_uri)
-        log.info(f"Downloaded {entry.name} in {time.perf_counter() - t0:.2f}s")
+        tile = handler.download_file(source, name)
+        log.info(f"Downloaded {name} in {time.perf_counter() - t0:.2f}s")
 
         tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
-        log.info(f"Fill no data for {entry.name}")
+        log.info(f"Fill no data for {name}")
         t1 = time.perf_counter()
         image_interpolation_idw(input_file=tile, output_file=tile_filled, k=8, power=2.0, batch_size=500_000)  # batch size has the most influence on memory usage
-        log.info(f"Filled nodata for {entry.name} in {time.perf_counter() - t1:.2f}s")
+        log.info(f"Filled nodata for {name} in {time.perf_counter() - t1:.2f}s")
 
-        log.info(f"Warping {entry.name}")
+        log.info(f"Warping {name}")
         tile_warped = temporary_directory / "{tile.stem}_warped_4326.tif"
         t2 = time.perf_counter()
         subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
-        log.info(f"Warped {entry.name} in {time.perf_counter() - t2:.2f}s")
+        log.info(f"Warped {name} in {time.perf_counter() - t2:.2f}s")
 
-        handler.upload_file_directory(tile_warped, intermediate, entry.name)
+        handler.upload_file_directory(tile_warped, intermediate, name)
 
         os.unlink(tile)
         os.unlink(tile_filled)
@@ -205,6 +205,7 @@ def generate_workflow() -> None:
 
             worker = workerfunc(with_param=queue.result, arguments=[queue.get_artifact("queue").with_name("queue"), {  # type: ignore
                                                                     "workerid": "{{item}}",
+                                                                    "source": "{{inputs.parameters.source}}",
                                                                     "intermediate": "{{inputs.parameters.intermediate}}"}])  # type: ignore
             merger = mergerfunc(arguments={  # type: ignore
                 "intermediate": "{{inputs.parameters.intermediate}}",
