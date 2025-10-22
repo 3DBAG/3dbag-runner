@@ -34,8 +34,12 @@ def queuefunc(source: str, intermediate: str, workercount: int) -> None:
     with open("/workflow/queue.json", 'w') as f:
         json.dump(queue, f)
 
-    log.info(f"Starting {workercount} workers")
-    json.dump([i for i in range(workercount)], sys.stdout)
+    if len(queue) == 0:
+        log.info("All TIFs are already warped, skipping worker stage")
+        json.dump([], sys.stdout)
+    else:
+        log.info(f"Starting {workercount} workers")
+        json.dump([i for i in range(workercount)], sys.stdout)
 
 
 @argo_worker(inputs=Artifact(name="queue", path="/workflow/queue.json"), retry_strategy=RetryStrategy(limit=5))  # type: ignore
@@ -74,6 +78,10 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
     def _process_task(index: int, name: str) -> None:
         log.info(f"Processing [{index}/{len(local_queue)}] {name}.")
 
+        if handler.file_exists(handler.navigate(intermediate, name)):
+            log.info(f"Skipping {name}, it already exists, seems we're retrying")
+            return
+
         log.info(f"Downloading {name}")
         t0 = time.perf_counter()
         tile = handler.download_file(source, name)
@@ -86,7 +94,7 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
         log.info(f"Filled nodata for {name} in {time.perf_counter() - t1:.2f}s")
 
         log.info(f"Warping {name}")
-        tile_warped = temporary_directory / "{tile.stem}_warped_4326.tif"
+        tile_warped = temporary_directory / f"{name}_warped_4326.tif"
         t2 = time.perf_counter()
         subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
         log.info(f"Warped {name} in {time.perf_counter() - t2:.2f}s")
@@ -119,15 +127,20 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     temporary_directory = Path("/workflow")
     handler = SchemeFileHandler(temporary_directory)
 
+    log.info("Listing files")
     warped_files = []
-    for tile in handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$"):
-        warped_files.append(str(handler.download_file(tile.full_uri)))
+    files_to_download = list(handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$"))
+    for index, tile in enumerate(files_to_download):
+        log.info(f"Downloading [{len(files_to_download)}/{index}] {tile.name}")
+        warped_files.append(str(handler.download_file(tile.full_uri)) + "\n")
 
+    log.info(f"Found {len(warped_files)} warped tiles")
     file_list = temporary_directory / "tif_4_vrt.txt"
     with open(file_list, "w") as f:
         f.writelines(warped_files)
 
     # Build a VRT from our list of warped tifs into the temporary directory
+    log.info(f"Build vrt for tiles")
     vrt_path = temporary_directory / "ahn.vrt"
     subprocess.run(["gdalbuildvrt", "-input_file_list", file_list, vrt_path, "-a_srs", "EPSG:4326"], check=True)
 
