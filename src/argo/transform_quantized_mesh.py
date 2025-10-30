@@ -96,7 +96,7 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
         log.info(f"Warping {name}")
         tile_warped = temporary_directory / f"{name}_warped_4326.tif"
         t2 = time.perf_counter()
-        subprocess.run(["gdalwarp", "-q", "-t_srs", "EPSG:4326+4979", tile_filled, tile_warped], check=True)
+        subprocess.run(["gdalwarp", "-s_srs", "EPSG:7415", "-q", "-t_srs", "EPSG:4326", tile_filled, tile_warped], check=True)
         log.info(f"Warped {name} in {time.perf_counter() - t2:.2f}s")
 
         handler.upload_file_directory(tile_warped, intermediate, name)
