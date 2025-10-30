@@ -145,7 +145,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     subprocess.run(["gdalbuildvrt", "-input_file_list", file_list, vrt_path, "-a_srs", "EPSG:4326"], check=True)
 
     start_zoom = 15
-    break_zoom = 9
+    break_zoom = 11
     end_zoom = 0
 
     output_directory: Path = temporary_directory / "quantized_mesh"
