@@ -1,0 +1,68 @@
+# Fetch stage #################################################################
+FROM ubuntu:latest AS fetchstage
+WORKDIR /ctbtemp
+
+# Setup fetch packages
+RUN set -x && apt-get update && \
+  apt-get install -y --no-install-recommends git ca-certificates
+
+# Fetch
+RUN set -x && \
+  git clone -b master-quantized-mesh --depth 1 \
+    https://github.com/ahuarte47/cesium-terrain-builder.git && \
+  cd cesium-terrain-builder
+
+# Build stage #################################################################
+FROM ubuntu:latest AS buildstage
+COPY --from=fetchstage /ctbtemp/cesium-terrain-builder /ctbtemp/cesium-terrain-builder
+WORKDIR /ctbtemp/cesium-terrain-builder
+
+# Steup build packages
+RUN set -x && \
+  apt-get update && \
+  apt-get install -y --no-install-recommends cmake build-essential libgdal-dev
+
+# Build & install cesium terrain builder
+RUN set -x && \
+  ls -lahF && \
+  mkdir build && cd build && cmake .. && make install .
+
+# Cleanup
+RUN  set -x && \
+  apt-get purge -y --auto-remove cmake build-essential libgdal-dev && \
+  rm -rf /var/lib/apt/lists/* && \
+  rm -rf /tmp/* && \
+  rm -rf /ctbtemp
+
+# Runtime stage ###############################################################
+FROM ubuntu:latest
+COPY --from=buildstage /usr/local/include/ctb /usr/local/include/ctb
+COPY --from=buildstage /usr/local/lib/libctb.so /usr/local/lib/libctb.so
+COPY --from=buildstage /usr/local/bin/ctb-* /usr/local/bin/
+
+# Setup runtime packages and env
+RUN set -x && apt-get update && \
+  apt-get install -y --no-install-recommends gdal-bin libgdal-dev curl ca-certificates build-essential && \
+  ldconfig
+
+  # Install python environment
+RUN curl -LsSf https://astral.sh/uv/install.sh | /bin/sh
+ENV PATH="/root/.local/bin:$PATH"
+
+WORKDIR /app
+COPY src /app/.
+COPY docker/tyler /app/assets
+
+COPY pyproject.toml /app
+COPY mypy.ini /app
+COPY uv.lock /app
+COPY docker/metadata.city.json /metadata.city.json
+COPY docker/binaries/proj.db /usr/share/proj/proj.db
+COPY docker/ahn.json /ahn.json
+
+# Install packages
+RUN sed -i 's/"gdal==3.7.3"/"gdal==3.8.4"/' pyproject.toml
+
+RUN uv sync
+
+CMD ["bash"]
