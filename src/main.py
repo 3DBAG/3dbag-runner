@@ -919,11 +919,57 @@ def main() -> None:
     create_pdok_index.set_defaults(func=create_pdok_index_operation)
 
     create_quantized_mesh = subparsers.add_parser("create_quantized_mesh", help="Create a quantized meshh")
-    create_quantized_mesh.add_argument("--source", type=str, required=True, help="handle://source")
-    create_quantized_mesh.add_argument("--destination", type=str, required=True, help="handle://destination")
-    create_quantized_mesh.add_argument("--temporary_directory", type=Path, required=True, help="Directory for temporary files")
-    create_quantized_mesh.add_argument("--parallel", type=int, default=None, required=False, help="Amount of parallel threads to run")
-    create_quantized_mesh.set_defaults(func=create_quantized_mesh_operation)
+    create_quantized_mesh.add_argument("--input", required=True, help="input dataset, can be a cog, vrt or mosaic, make sure the path/url is exactly the same as the one being supplied to the server when requesting tiles.")
+    parser.add_argument("--output", required=True, help="Specify the output folder for the cache.")
+    parser.add_argument("--meshing-method", default="grid", help="The meshing method to use: grid, delatin, martini. Defaults to grid.")
+    parser.add_argument(
+        "-z",
+        "--zoom-levels",
+        metavar="zoom_levels",
+        required=True,
+        help="The zoom levels to create a cache for. Separate multiple levels with '-'.",
+    )
+    parser.add_argument(
+        "--port",
+        metavar="port",
+        required=False,
+        default="5580",
+        help="The port to run the server on. Defaults to 5580.",
+    )
+    parser.add_argument(
+        "-r",
+        "--request-count",
+        metavar="request_count",
+        required=False,
+        default="10",
+        help="Amount of simultaneous requests send to CTOD. Defaults to 10.",
+    )
+    parser.add_argument(
+        "-p",
+        "--params",
+        metavar="request_parameters",
+        required=False,
+        default=None,
+        help="Pass options to tile requests, e.g. 'resamplingMethod=bilinear&defaultGridSize=20'. Defaults to None.",
+    )
+    parser.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Add --overwrite to overwrite existing tiles in the cache. Defaults to False.",
+    )
+    parser.add_argument(
+        "--export-layer-json",
+        metavar="export_layer_json",
+        required=False,
+        default=None,
+        help="Add --export-layer-json followed by the max zoom level to create a layer.json in the root directory.",
+    )
+
+    parser.add_argument(
+        "--no-gzip",
+        action="store_true",
+        help="Add --no-gzip to disable gzip compression. Defaults to False. Only use if you are going to statically serve the tiles and don't want to use gzip compression.",
+    )
 
     args = parser.parse_args()
     if args.command:

@@ -114,7 +114,6 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
 
 @argo_worker(retry_strategy=RetryStrategy(limit=1))  # type: ignore
 def mergerfunc(intermediate: str, destination: str) -> None:
-    import glob
     import logging
     import os
     import subprocess
@@ -142,13 +141,13 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     end_zoom = 0
 
     log.info("")
-    warped_file_list = temporary_directory / f"warped.txt"
+    warped_file_list = temporary_directory / "warped.txt"
     with open(warped_file_list, "w") as f:
         f.writelines(warped_files)
 
     # Build a VRT from our list of warped tifs into the temporary directory
-    log.info(f"Build vrt for tiles")
-    warped_tile_vrt = temporary_directory / f"level{start_zoom+1}.vrt"
+    log.info("Build vrt for tiles")
+    warped_tile_vrt = temporary_directory / f"level{start_zoom + 1}.vrt"
     subprocess.run(["gdalbuildvrt", "-input_file_list", warped_file_list, warped_tile_vrt], check=True)
 
     output_directory: Path = temporary_directory / "quantized_mesh"
@@ -161,7 +160,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
         ], check=True)
 
         for zoom_level in range(start_zoom, -1, -1):
-            zoom_vrt: str = str(temporary_directory / f"level{zoom_level+1}.vrt")
+            zoom_vrt: str = str(temporary_directory / f"level{zoom_level + 1}.vrt")
             zoom_level_dir: Path = temporary_directory / "zoom" / str(zoom_level)
             os.makedirs(zoom_level_dir, exist_ok=True)
 
@@ -170,7 +169,6 @@ def mergerfunc(intermediate: str, destination: str) -> None:
                 "ctb-tile", "-v", "-s", str(zoom_level), "-e", str(zoom_level), "--output-dir", str(output_directory), zoom_vrt
             ], check=True)
 
-            
             log.info(f"Done creating the terrain mesh, now create a tif for zoomlevel, we will use it to create another mesh {zoom_level}...")
             subprocess.run([
                 "ctb-tile", "-v", "--output-format", "GTiff", "-s", str(zoom_level), "-e", str(zoom_level), "--output-dir", str(zoom_level_dir), zoom_vrt
@@ -183,13 +181,13 @@ def mergerfunc(intermediate: str, destination: str) -> None:
             for file_path in zoom_level_dir.rglob("*.tif"):
                 if file_path.is_file():
                     tif_files.append(str(file_path))
-            
+
             if not tif_files:
                 raise FileNotFoundError("No files found matching the pattern")
-            
+
             # Sort files for consistent ordering
             tif_files.sort()
-            
+
             # Write file list to temporary text file
             temp_list_file: Path = zoom_level_dir / "tiffs.txt"
             with open(temp_list_file, 'w') as f:
@@ -215,9 +213,9 @@ def generate_workflow() -> None:
                                    Parameter(name="source", default="azure://<sas>"),
                                    Parameter(name="destination", default="azure://<sas>"),
                                    Parameter(name="intermediate", default="azure://<sas>"),
-                                   Parameter(name="workercount", default="1") 
+                                   Parameter(name="workercount", default="1")
     ]) as w:
-        with DAG(name="dag", inputs=[Parameter(name="source"), 
+        with DAG(name="dag", inputs=[Parameter(name="source"),
                                      Parameter(name="destination"),
                                      Parameter(name="intermediate"),
                                      Parameter(name="workercount")]):
