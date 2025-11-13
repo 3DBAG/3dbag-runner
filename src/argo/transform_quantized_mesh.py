@@ -96,7 +96,8 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
         log.info(f"Warping {name}")
         tile_warped = temporary_directory / f"{name}_warped_4326.tif"
         t2 = time.perf_counter()
-        subprocess.run(["gdalwarp", "-s_srs", "EPSG:7415", "-q", "-t_srs", "EPSG:4326", tile_filled, tile_warped], check=True)
+        subprocess.run(["gdalwarp", "-s_srs", "EPSG:7415", "-co", "TILES=YES", "-co", "BLOCKXSIZE=67", "-co", "BLOCKYSIZE=67", "-q", "-t_srs", "EPSG:4326", tile_filled, tile_warped], check=True)
+        subprocess.run(["gdaladdo", "-r", "nearest", tile_warped, "2", "4", "8"], check=True)
         log.info(f"Warped {name} in {time.perf_counter() - t2:.2f}s")
 
         handler.upload_file_directory(tile_warped, intermediate, name)
@@ -132,66 +133,75 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     files_to_download = list(handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$"))
     for index, tile in enumerate(files_to_download):
         log.info(f"Downloading [{len(files_to_download)}/{index}] {tile.name}")
-        warped_files.append(str(handler.download_file(tile.full_uri)) + "\n")
+        warped_tile_path = str(handler.download_file(tile.full_uri))
+        warped_files.append(warped_tile_path + "\n")
 
     log.info(f"Found {len(warped_files)} warped tiles")
-    file_list = temporary_directory / "tif_4_vrt.txt"
-    with open(file_list, "w") as f:
+
+    start_zoom = 15
+    end_zoom = 0
+
+    log.info("")
+    warped_file_list = temporary_directory / f"warped.txt"
+    with open(warped_file_list, "w") as f:
         f.writelines(warped_files)
 
     # Build a VRT from our list of warped tifs into the temporary directory
     log.info(f"Build vrt for tiles")
-    vrt_path = temporary_directory / "ahn.vrt"
-    subprocess.run(["gdalbuildvrt", "-input_file_list", file_list, vrt_path, "-a_srs", "EPSG:4326"], check=True)
-
-    start_zoom = 15
-    break_zoom = 11
-    end_zoom = 0
+    warped_tile_vrt = temporary_directory / f"level{start_zoom+1}.vrt"
+    subprocess.run(["gdalbuildvrt", "-input_file_list", warped_file_list, warped_tile_vrt], check=True)
 
     output_directory: Path = temporary_directory / "quantized_mesh"
     os.makedirs(output_directory, exist_ok=True)
 
-    # Create quantized mesh tiles for level start_zoom to break_zoom using ctb-tile
-    # You can find ctb-tile on https://github.com/geo-data/cesium-terrain-builder (it's an old executable...)
     try:
-        log.info(f"Running ctb-tile from {start_zoom} to level {break_zoom}...")
-        subprocess.run([
-            "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
-            "-e", str(break_zoom), "-s", str(start_zoom), "-o", str(output_directory), vrt_path
-        ], check=True)
-
-        # create layer.json file
         log.info("Creating layer.json file...")
         subprocess.run([
-            "ctb-tile", "-f", "Mesh", "-C", "-N",
-            "-e", str(end_zoom), "-s", str(start_zoom), "-c", "1", "-l", "-o", str(output_directory), vrt_path
+            "ctb-tile", "-v", "-f", "Mesh", "-C", "-N", "-s", str(start_zoom), "-e", str(end_zoom), "-l", "--output-dir", str(output_directory), warped_tile_vrt
         ], check=True)
 
-        # Workaround: generate GeoTIFF tiles on level break_zoom
-        log.info(f"Creating GTiff tiles for level {break_zoom}...")
-        subprocess.run([
-            "ctb-tile", "-v", "--output-format", "GTiff", "--output-dir", str(temporary_directory),
-            "-s", str(break_zoom), "-e", str(break_zoom), vrt_path
-        ], check=True)
+        for zoom_level in range(start_zoom, -1, -1):
+            zoom_vrt: str = str(temporary_directory / f"level{zoom_level+1}.vrt")
+            zoom_level_dir: Path = temporary_directory / "zoom" / str(zoom_level)
+            os.makedirs(zoom_level_dir, exist_ok=True)
 
-        # Create VRT for GeoTIFF tiles on level break_zoom
-        level_vrt = os.path.join(str(temporary_directory), f"level{break_zoom}.vrt")
-        tiff_pattern = os.path.join(str(temporary_directory), str(break_zoom), "*", "*.tif")
-        tiff_files = glob.glob(tiff_pattern)
-        if tiff_files:
-            log.info(f"Create vrt for GTiff tiles on level {break_zoom}...")
-            subprocess.run(["gdalbuildvrt", level_vrt] + tiff_files, check=True)
-        else:
-            log.warning(f"No GTiff tiles found for level {break_zoom} (pattern: {tiff_pattern})")
+            log.info(f"Creating terrain mesh for {zoom_level}...")
+            subprocess.run([
+                "ctb-tile", "-v", "-s", str(zoom_level), "-e", str(zoom_level), "--output-dir", str(output_directory), zoom_vrt
+            ], check=True)
 
-        # Make terrain tiles for level break_zoom-1 to 0
-        log.info(f"Run ctb-tile on level {break_zoom - 1} to {end_zoom}")
-        subprocess.run([
-            "ctb-tile", "-v", "-f", "Mesh", "-C", "-N",
-            "-e", str(end_zoom), "-s", str(break_zoom - 1), "-o", str(output_directory), level_vrt
-        ], check=True)
+            
+            log.info(f"Done creating the terrain mesh, now create a tif for zoomlevel, we will use it to create another mesh {zoom_level}...")
+            subprocess.run([
+                "ctb-tile", "-v", "--output-format", "GTiff", "-s", str(zoom_level), "-e", str(zoom_level), "--output-dir", str(zoom_level_dir), zoom_vrt
+            ], check=True)
 
-        handler.upload_folder(output_directory, destination)
+            # Create the list of files
+            tif_files: list[str] = []
+
+            # Find all files matching the pattern
+            for file_path in zoom_level_dir.rglob("*.tif"):
+                if file_path.is_file():
+                    tif_files.append(str(file_path))
+            
+            if not tif_files:
+                raise FileNotFoundError("No files found matching the pattern")
+            
+            # Sort files for consistent ordering
+            tif_files.sort()
+            
+            # Write file list to temporary text file
+            temp_list_file: Path = zoom_level_dir / "tiffs.txt"
+            with open(temp_list_file, 'w') as f:
+                for tif_file in tif_files:
+                    f.write(f"{tif_file}\n")
+
+            level_vrt = temporary_directory / f"level{zoom_level}.vrt"
+            log.info(f"Create vrt for GTiff tiles on level {zoom_level}...")
+            subprocess.run(["gdalbuildvrt", '-input_file_list', temp_list_file, str(level_vrt)], check=True)
+
+        handler.upload_folder(output_directory, handler.navigate(destination, "mesh"))
+        handler.upload_folder(temporary_directory / "zoom", handler.navigate(destination, "source"))
     except FileNotFoundError as e:
         log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
     except subprocess.CalledProcessError as e:

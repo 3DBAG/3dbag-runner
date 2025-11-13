@@ -46,9 +46,7 @@ ENV PATH="/root/.cargo/bin:${PATH}"
 # Install packages
 RUN uv sync
 
-RUN git clone https://github.com/3DBAG/cesium-terrain-builder && \
-    cd cesium-terrain-builder && \
-    git checkout --quiet 307b5f1263f9489a8831548b04be018023f2f82e
+RUN git clone --depth 1 https://github.com/3DBAG/cesium-terrain-builder
 
 RUN cd cesium-terrain-builder && \
     mkdir build && cd build && \
