@@ -30,6 +30,7 @@ from roofhelper.cityjson.geluid import (GELUID_SCHEMA, HOOGTE_SCHEMA,
                                         building_to_gpkg_dict,
                                         building_to_hoogte_gpkg_dict,
                                         read_height_from_cityjson)
+from roofhelper.classifier.intersect_classifier import classify_pointcloud
 from roofhelper.io import SchemeFileHandler, download_if_not_exists
 from roofhelper.kadaster import bag
 from roofhelper.kadaster.geo import grid_create_on_intersecting_centroid
@@ -41,6 +42,11 @@ from roofhelper.roofer import PointcloudConfig, roofer_config_generate
 from roofhelper.geo.interpolation import image_interpolation_idw
 
 log = defaultlogging.setup_logging(logging.INFO)
+
+
+def classify_operation(args: argparse.Namespace) -> None:
+    """Operation function for classifying pointcloud."""
+    classify_pointcloud(args.laz_file, args.gpkg_file, args.output_file, args.buffer)
 
 
 def createlazdb_operation(args: argparse.Namespace) -> None:
@@ -838,6 +844,13 @@ def main() -> None:
     createlazdb.add_argument("--epsg", type=int, required=False, help="EPSG Code, eg 28992 for RD", default=28992)
     createlazdb.add_argument("--processing-chunk-size", type=int, required=False, help="Batch size of laz files to concurrently process, default 100, concurrency will equal the amount of cpu cores you have in the system", default=100)
     createlazdb.set_defaults(func=createlazdb_operation)
+
+    classify = subparsers.add_parser("classify", help="Classify pointcloud based on intersecting building geometries from geopackage")
+    classify.add_argument("laz_file", type=str, help="Input LAZ file path")
+    classify.add_argument("gpkg_file", type=str, help="Input geopackage file with building geometries")
+    classify.add_argument("output_file", type=str, help="Output LAZ file path")
+    classify.add_argument("--buffer", type=float, default=0.2, help="Buffer distance in meters for geometries (default: 0.2)")
+    classify.set_defaults(func=classify_operation)
 
     runsingleroofertile = subparsers.add_parser("runsingleroofertile", help="Create roofer configuration files using gpkgs as input")
     runsingleroofertile.add_argument("--destination", type=str, required=True)
