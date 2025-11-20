@@ -22,6 +22,7 @@ from roofhelper.io.EntryProperties import EntryProperties
 import fiona
 import geopandas
 import laspy
+import numpy as np
 from shapely import box
 from tqdm import tqdm
 
@@ -164,9 +165,49 @@ def runsingleroofertile(extent: tuple[float, float, float, float],
         pointcloud_paths = pointcloud_footprint_selected['path'].tolist()
         pointclouds_downloaded: list[str] = []
 
+        def _is_unclassified(laz_path: str) -> bool:
+            """Check if pointcloud contains only classifications 0 and/or 32."""
+            try:
+                with laspy.open(laz_path) as las_file:
+                    # Read first chunk to check classifications
+                    points = las_file.read()
+                    classifications = points.classification
+                    # Convert to numpy array to ensure it's iterable
+                    unique_classes = set(np.unique(np.asarray(classifications)))
+                    
+                    # Check if only contains 0 and/or 32 (unclassified data)
+                    return unique_classes.issubset({0, 32})
+            except Exception as e:
+                log.warning(f"Could not check classifications for {laz_path}: {e}")
+                return False
+
         def _safe_download(path: str) -> Optional[str]:
             try:
-                return str(file_handler.download_file(pointcloud, path))
+                downloaded_path = str(file_handler.download_file(pointcloud, path))
+                
+                # Check if pointcloud needs classification
+                if _is_unclassified(downloaded_path):
+                    log.info(f"Pointcloud {path} is unclassified, classifying...")
+                    try:
+                        # Create output path for classified pointcloud
+                        classified_path = file_handler.create_file(suffix=".laz")
+                        
+                        # Classify the pointcloud using index.gpkg
+                        classify_pointcloud(downloaded_path, pointcloud_footprint_file, str(classified_path), buffer_distance=0.2)
+                        
+                        # Remove unclassified pointcloud
+                        if os.path.exists(downloaded_path):
+                            os.remove(downloaded_path)
+                        
+                        log.info(f"Successfully classified {path}")
+                        return str(classified_path)
+                    except Exception as classify_error:
+                        log.warning(f"Failed to classify {path}: {classify_error}, using unclassified version")
+                        return downloaded_path
+                else:
+                    log.info(f"Pointcloud {path} is already classified")
+                    return downloaded_path
+                    
             except Exception as e:
                 if error_on_missing_tiles:
                     raise e
