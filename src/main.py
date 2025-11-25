@@ -174,7 +174,7 @@ def runsingleroofertile(extent: tuple[float, float, float, float],
                     classifications = points.classification
                     # Convert to numpy array to ensure it's iterable
                     unique_classes = set(np.unique(np.asarray(classifications)))
-                    
+
                     # Check if only contains 0 and/or 32 (unclassified data)
                     return unique_classes.issubset({0, 32})
             except Exception as e:
@@ -184,21 +184,21 @@ def runsingleroofertile(extent: tuple[float, float, float, float],
         def _safe_download(path: str) -> Optional[str]:
             try:
                 downloaded_path = str(file_handler.download_file(pointcloud, path))
-                
+
                 # Check if pointcloud needs classification
                 if _is_unclassified(downloaded_path):
                     log.info(f"Pointcloud {path} is unclassified, classifying...")
                     try:
                         # Create output path for classified pointcloud
                         classified_path = file_handler.create_file(suffix=".laz")
-                        
+
                         # Classify the pointcloud using index.gpkg
                         classify_pointcloud(downloaded_path, pointcloud_footprint_file, str(classified_path), buffer_distance=0.2)
-                        
+
                         # Remove unclassified pointcloud
                         if os.path.exists(downloaded_path):
                             os.remove(downloaded_path)
-                        
+
                         log.info(f"Successfully classified {path}")
                         return str(classified_path)
                     except Exception as classify_error:
@@ -207,7 +207,7 @@ def runsingleroofertile(extent: tuple[float, float, float, float],
                 else:
                     log.info(f"Pointcloud {path} is already classified")
                     return downloaded_path
-                    
+
             except Exception as e:
                 if error_on_missing_tiles:
                     raise e

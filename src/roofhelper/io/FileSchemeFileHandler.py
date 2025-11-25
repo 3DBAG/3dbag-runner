@@ -106,12 +106,12 @@ class FileSchemeFileHandler(AbstractSchemeHandler):
                 yield entry_props
 
     @staticmethod
-    def list_entries_shallow(uri: str, regex: Optional[str] = None) -> Generator[EntryProperties]:
+    def list_entries_shallow(uri: str, regex: Optional[str] = None) -> Generator[EntryProperties, None, None]:
         """List files in the current directory (shallow listing)."""
         return FileSchemeFileHandler._list_files_impl(uri, regex, recursive=False)
 
     @staticmethod
-    def list_entries_recursive(uri: str, regex: Optional[str] = None) -> Generator[EntryProperties]:
+    def list_entries_recursive(uri: str, regex: Optional[str] = None) -> Generator[EntryProperties, None, None]:
         """List files recursively through all subdirectories."""
         return FileSchemeFileHandler._list_files_impl(uri, regex, recursive=True)
 

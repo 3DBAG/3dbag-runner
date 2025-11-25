@@ -25,12 +25,12 @@ class AbstractSchemeHandler(ABC):
 
     @staticmethod
     @abstractmethod
-    def list_entries_shallow(uri: str, regex: str = '') -> Generator[EntryProperties]:
+    def list_entries_shallow(uri: str, regex: str = '') -> Generator[EntryProperties, None, None]:
         pass
 
     @staticmethod
     @abstractmethod
-    def list_entries_recursive(uri: str, regex: str = '') -> Generator[EntryProperties]:
+    def list_entries_recursive(uri: str, regex: str = '') -> Generator[EntryProperties, None, None]:
         pass
 
     @staticmethod

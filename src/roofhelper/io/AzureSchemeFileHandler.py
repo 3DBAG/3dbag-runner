@@ -149,7 +149,7 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
             blob_client.upload_blob(f, overwrite=True)
 
     @staticmethod
-    def _list_files_impl(uri: str, regex: str = '', recursive: bool = False) -> Generator[EntryProperties]:
+    def _list_files_impl(uri: str, regex: str = '', recursive: bool = False) -> Generator[EntryProperties, None, None]:
         """
         Internal implementation for listing files in Azure blob storage.
 
@@ -228,12 +228,12 @@ class AzureSchemeFileHandler(AbstractSchemeHandler):
             yield entry
 
     @staticmethod
-    def list_entries_shallow(uri: str, regex: str = '') -> Generator[EntryProperties]:
+    def list_entries_shallow(uri: str, regex: str = '') -> Generator[EntryProperties, None, None]:
         """List files in the current directory (shallow listing)."""
         return AzureSchemeFileHandler._list_files_impl(uri, regex, recursive=False)
 
     @staticmethod
-    def list_entries_recursive(uri: str, regex: str = '') -> Generator[EntryProperties]:
+    def list_entries_recursive(uri: str, regex: str = '') -> Generator[EntryProperties, None, None]:
         """List files recursively through all subdirectories."""
         return AzureSchemeFileHandler._list_files_impl(uri, regex, recursive=True)
 
