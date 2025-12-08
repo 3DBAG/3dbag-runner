@@ -28,6 +28,9 @@ dependencies = [
     "pytest-cov>=6.2.1",
     "requests-aws4auth>=1.3.1",
     "scipy>=1.16.2",
+    "pydelatin>=0.3.0",
+    "rasterio>=1.4.3",
+    "quantized-mesh-encoder>=0.5.0",
 ]
 
 [tool.pytest.ini_options]

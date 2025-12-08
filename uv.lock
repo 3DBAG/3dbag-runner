@@ -17,9 +17,12 @@ dependencies = [
     { name = "mypy" },
     { name = "pandas-stubs" },
     { name = "pdal" },
+    { name = "pydelatin" },
     { name = "pyjwt" },
     { name = "pytest" },
     { name = "pytest-cov" },
+    { name = "quantized-mesh-encoder" },
+    { name = "rasterio" },
     { name = "requests" },
     { name = "requests-aws4auth" },
     { name = "scipy" },
@@ -50,12 +53,15 @@ requires-dist = [
     { name = "mypy", specifier = ">=1.15.0" },
     { name = "pandas-stubs", specifier = ">=2.2.3.250308" },
     { name = "pdal", specifier = ">=3.4.3" },
+    { name = "pydelatin", specifier = ">=0.3.0" },
     { name = "pyjwt", specifier = ">=2.10.1" },
     { name = "pytest", specifier = ">=8.0.0" },
     { name = "pytest-cov", specifier = ">=6.2.1" },
+    { name = "quantized-mesh-encoder", specifier = ">=0.5.0" },
+    { name = "rasterio", specifier = ">=1.4.3" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "requests-aws4auth", specifier = ">=1.3.1" },
-    { name = "scipy", specifier = ">=1.16.2" },
+    { name = "scipy", extras = ["spatial"], specifier = ">=1.16.2" },
     { name = "shapely", specifier = ">=2.1.0" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "toml", specifier = ">=0.10.2" },
@@ -69,6 +75,15 @@ requires-dist = [
 dev = [
     { name = "autoflake", specifier = ">=2.3.1" },
     { name = "autopep8", specifier = ">=2.3.2" },
+]
+
+[[package]]
+name = "affine"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/69/98/d2f0bb06385069e799fc7d2870d9e078cfa0fa396dc8a2b81227d0da08b9/affine-2.4.0.tar.gz", hash = "sha256:a24d818d6a836c131976d22f8c27b8d3ca32d0af64c1d8d29deb7bafa4da1eea", size = 17132, upload-time = "2023-01-19T23:44:30.696Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/0b/f7/85273299ab57117850cc0a936c64151171fac4da49bc6fba0dad984a7c5f/affine-2.4.0-py3-none-any.whl", hash = "sha256:8a3df80e2b2378aef598a83c1392efd47967afec4242021a0b06b4c7cbc61a92", size = 15662, upload-time = "2023-01-19T23:44:28.833Z" },
 ]
 
 [[package]]
@@ -644,6 +659,23 @@ wheels = [
 ]
 
 [[package]]
+name = "pydelatin"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/fa/83/a24996ae8f29a5a3cae61f7433e358d50876fa6bbe3d08cb76ef7dac5222/pydelatin-0.3.0.tar.gz", hash = "sha256:14b6b594bd31e5b0324a662b434ac6afa4d21ab72fa3116549507c4cfdba6552", size = 99743, upload-time = "2025-06-25T15:48:44.184Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/bc/d1/b3f4ae6b81a2076cda0ee8ea36ebcf714cb73d5c79e508813730cff6d215/pydelatin-0.3.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:ecafcd0b3a8d870aeabe8a9a47ddcc7a37c6577e2ce76047fbfb79564d12d591", size = 188991, upload-time = "2025-06-25T15:48:24.385Z" },
+    { url = "https://files.pythonhosted.org/packages/56/65/e3795c32979da5ba116ca6542fca17e6ae31e6dfd84e99340f805688d1c7/pydelatin-0.3.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:205e755e35a978714851502bd431af13db39720150b548b93e55c06d497202bd", size = 174406, upload-time = "2025-06-25T15:48:25.311Z" },
+    { url = "https://files.pythonhosted.org/packages/bc/2a/bacaafff95d9b63cc0df0fd928c229c4e70bd38d28584b31084bb1b94b3f/pydelatin-0.3.0-cp312-cp312-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:7997ff8d10e0f5d928543037389050c1101f9114d8fc1479048b804f19dff20f", size = 208744, upload-time = "2025-06-25T15:48:26.206Z" },
+    { url = "https://files.pythonhosted.org/packages/4b/27/f4a59aa22a0ac61d092373561c4d85b4bae0a2c6935866fcb8e8629b58c7/pydelatin-0.3.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:891efaa8b5f4f8ceb7c151c0e5e69f06ce931fcfccadb3f1c6ed4190e00a9dd1", size = 216135, upload-time = "2025-06-25T15:48:27.018Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/9f/809cddb3f8d6220c005fe6042810d15e6e312fe17b59d6936ad75060e3d8/pydelatin-0.3.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:a0169d668ae91b13f33038d3832d1a74da4445c2a5cbc6c37c02d984f7e7c943", size = 1192506, upload-time = "2025-06-25T15:48:28.568Z" },
+    { url = "https://files.pythonhosted.org/packages/09/86/e882ca4c5d8df3e4089f2f658f3ed03ba01b51f6d8c51d19df3ac3e77cfa/pydelatin-0.3.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:c71d7d6c0891ee35017e380019590478a2b1e788e75a70ce5fa0c7e2e705a7e5", size = 1247372, upload-time = "2025-06-25T15:48:30.244Z" },
+]
+
+[[package]]
 name = "pyflakes"
 version = "3.4.0"
 source = { registry = "https://pypi.org/simple" }
@@ -687,6 +719,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/bd/4c/79e47e40a8e54e79a45133786a0a58209534f580591c933d40c5ed314fe7/pyogrio-0.10.0-cp312-cp312-manylinux_2_28_aarch64.whl", hash = "sha256:19f18411bdf836d24cdc08b9337eb3ec415e4ac4086ba64516b36b73a2e88622", size = 23081469, upload-time = "2024-09-28T20:42:22.049Z" },
     { url = "https://files.pythonhosted.org/packages/47/78/2b62c8a340bcb0ea56b9ddf2ef5fd3d1f101dc0e98816b9e6da87c5ac3b7/pyogrio-0.10.0-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:1abbcdd9876f30bebf1df8a0273f6cdeb29d03259290008275c7fddebe139f20", size = 24024758, upload-time = "2024-09-28T19:10:47.873Z" },
     { url = "https://files.pythonhosted.org/packages/43/97/34605480f06b0ad9611bf58a174eccc6f3673275f3d519cf763391892881/pyogrio-0.10.0-cp312-cp312-win_amd64.whl", hash = "sha256:2a3e09839590d71ff832aa95c4f23fa00a2c63c3de82c1fbd4fb8d265792acfc", size = 16160294, upload-time = "2024-09-28T19:10:50.75Z" },
+]
+
+[[package]]
+name = "pyparsing"
+version = "3.2.5"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/f2/a5/181488fc2b9d093e3972d2a472855aae8a03f000592dbfce716a512b3359/pyparsing-3.2.5.tar.gz", hash = "sha256:2df8d5b7b2802ef88e8d016a2eb9c7aeaa923529cd251ed0fe4608275d4105b6", size = 1099274, upload-time = "2025-09-21T04:11:06.277Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/10/5e/1aa9a93198c6b64513c9d7752de7422c06402de6600a8767da1524f9570b/pyparsing-3.2.5-py3-none-any.whl", hash = "sha256:e38a4f02064cf41fe6593d328d0512495ad1f3d8a91c4f73fc401b3079a59a5e", size = 113890, upload-time = "2025-09-21T04:11:04.117Z" },
 ]
 
 [[package]]
@@ -774,6 +815,48 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/c9/1f/4f998c900485e5c0ef43838363ba4a9723ac0ad73a9dc42068b12aaba4e4/PyYAML-6.0.2-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:8b9c7197f7cb2738065c481a0461e50ad02f18c78cd75775628afb4d7137fb3b", size = 756611, upload-time = "2024-08-06T20:32:38.898Z" },
     { url = "https://files.pythonhosted.org/packages/df/d1/f5a275fdb252768b7a11ec63585bc38d0e87c9e05668a139fea92b80634c/PyYAML-6.0.2-cp312-cp312-win32.whl", hash = "sha256:ef6107725bd54b262d6dedcc2af448a266975032bc85ef0172c5f059da6325b4", size = 140591, upload-time = "2024-08-06T20:32:40.241Z" },
     { url = "https://files.pythonhosted.org/packages/0c/e8/4f648c598b17c3d06e8753d7d13d57542b30d56e6c2dedf9c331ae56312e/PyYAML-6.0.2-cp312-cp312-win_amd64.whl", hash = "sha256:7e7401d0de89a9a855c839bc697c079a4af81cf878373abd7dc625847d25cbd8", size = 156338, upload-time = "2024-08-06T20:32:41.93Z" },
+]
+
+[[package]]
+name = "quantized-mesh-encoder"
+version = "0.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "attrs" },
+    { name = "numpy" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/70/a3/9a9518d514a7561f2caa37b4004d8ccc1512fb070cc4411bc2c5299ff4c5/quantized_mesh_encoder-0.5.0.tar.gz", hash = "sha256:8b2e133dde20ae81a727445c28f47f303c2126f3b0915e19f0c8ef88710bef40", size = 179356, upload-time = "2025-06-24T21:16:04.438Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ff/ab/8813abbdf4039dce39b642d826289298daf60a5cfbceeeb015020fdc2f5b/quantized_mesh_encoder-0.5.0-cp312-cp312-macosx_10_13_x86_64.whl", hash = "sha256:c464cb5cd52064ef7f87f9b2e64972c4113cba3eeef0381f5929dfaad52f36e9", size = 259172, upload-time = "2025-06-24T21:15:34.114Z" },
+    { url = "https://files.pythonhosted.org/packages/48/a4/7ea859fe26b973540d37af1e2182781d721d6e9f3de6d563b04388233400/quantized_mesh_encoder-0.5.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:7d99878a9d94b344b7adcd2a2d45a54f3a9ddddc7a66b0bd1c0824c158807192", size = 252575, upload-time = "2025-06-24T21:15:35.155Z" },
+    { url = "https://files.pythonhosted.org/packages/8d/74/6ee7d0f92f149961d75b7374e8c25f923894c4bd798db927052e0b435d4d/quantized_mesh_encoder-0.5.0-cp312-cp312-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl", hash = "sha256:9bdd185cb3e8df7fb7ef7c27086f0661d51e0e84f682c2ae761282db440b19af", size = 682015, upload-time = "2025-06-24T21:15:36.744Z" },
+    { url = "https://files.pythonhosted.org/packages/7d/d9/dc5fa5d478248e655c1e6fa985ff914458da78b18a89d47496fa2ee06564/quantized_mesh_encoder-0.5.0-cp312-cp312-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl", hash = "sha256:c580b7188d4444d2abc8737dbb8b122ec7cf1b1f2824e8b7c703f4f966f900e4", size = 692477, upload-time = "2025-06-24T21:15:38.332Z" },
+    { url = "https://files.pythonhosted.org/packages/b6/68/39c7867b03fb258dc4d1f9e2567a98bdf540c50bdecaf3122c74412b550a/quantized_mesh_encoder-0.5.0-cp312-cp312-musllinux_1_2_aarch64.whl", hash = "sha256:9fcb50cfecc589bb49ad09768969cab203c1cc1de3c17e8f5a24ea5c51e49459", size = 671704, upload-time = "2025-06-24T21:15:39.443Z" },
+    { url = "https://files.pythonhosted.org/packages/d4/e6/9ac0b776202e5b368a7866ff17f31e52a0b1d33d7b16fb94c00f9827761d/quantized_mesh_encoder-0.5.0-cp312-cp312-musllinux_1_2_x86_64.whl", hash = "sha256:86f297df7406218b03f733414bb431af2d914cd90330b20e10ae222bca1a42a3", size = 691996, upload-time = "2025-06-24T21:15:40.956Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/82/a46c55ccab5c855bf1d1321ec756c805373538f7ab8c2d4360e108b23ccd/quantized_mesh_encoder-0.5.0-cp312-cp312-win32.whl", hash = "sha256:0f321e218f353a64fee6a843c6adc6eb04bb0ff91a09b70a88bb4dcb09db4970", size = 239206, upload-time = "2025-06-24T21:15:41.957Z" },
+    { url = "https://files.pythonhosted.org/packages/04/2b/ffb05ea735c97639defe8e132020a4763e58c14b0ff6ea8eb86af006f25b/quantized_mesh_encoder-0.5.0-cp312-cp312-win_amd64.whl", hash = "sha256:b14a33ecc2fc807886804652d208c150fd660c0c5bbaa9bda682f6811ab9769d", size = 251898, upload-time = "2025-06-24T21:15:42.887Z" },
+]
+
+[[package]]
+name = "rasterio"
+version = "1.4.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "affine" },
+    { name = "attrs" },
+    { name = "certifi" },
+    { name = "click" },
+    { name = "click-plugins" },
+    { name = "cligj" },
+    { name = "numpy" },
+    { name = "pyparsing" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/de/19/ab4326e419b543da623ce4191f68e3f36a4d9adc64f3df5c78f044d8d9ca/rasterio-1.4.3.tar.gz", hash = "sha256:201f05dbc7c4739dacb2c78a1cf4e09c0b7265b0a4d16ccbd1753ce4f2af350a", size = 442990, upload-time = "2024-12-02T14:49:25.571Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5a/f2/b7417292ceace70d815760f7e41fe5b0244ebff78ede11b1ffa9ca01c370/rasterio-1.4.3-cp312-cp312-macosx_10_15_x86_64.whl", hash = "sha256:e703e4b2c74c678786d5d110a3f30e26f3acfd65f09ccf35f69683a532f7a772", size = 21514543, upload-time = "2024-12-02T14:48:49.757Z" },
+    { url = "https://files.pythonhosted.org/packages/b2/ea/e21010457847b26bb4aea3983e9b44afbcefef07defc5e9a3285a8fe2f0c/rasterio-1.4.3-cp312-cp312-macosx_14_0_arm64.whl", hash = "sha256:38a126f8dbf405cd3450b5bd10c6cc493a2e1be4cf83442d26f5e4f412372d36", size = 18735924, upload-time = "2024-12-02T14:48:53.263Z" },
+    { url = "https://files.pythonhosted.org/packages/67/72/331727423b28fffdfd8bf18bdc55c18d374c0fefd2dde390cd833f8f4477/rasterio-1.4.3-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:8e90c2c300294265c16becc9822337ded0f01fb8664500b4d77890d633d8cd0e", size = 22251721, upload-time = "2024-12-02T14:48:56.533Z" },
+    { url = "https://files.pythonhosted.org/packages/be/cc/453816b489af94b9a243eda889865973d518989ba6923b2381f6d6722b43/rasterio-1.4.3-cp312-cp312-win_amd64.whl", hash = "sha256:a962ad4c29feaf38b1d7a94389313127de3646a5b9b734fbf9a04e16051a27ff", size = 25430154, upload-time = "2024-12-02T14:48:59.261Z" },
 ]
 
 [[package]]

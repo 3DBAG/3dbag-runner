@@ -47,13 +47,13 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
     import json
     import logging
     import os
-    import subprocess
     import time
     from concurrent.futures import ThreadPoolExecutor
     from pathlib import Path
 
     from osgeo import gdal
 
+    from qmesh.raster import reproject_image
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.geo.interpolation import image_interpolation_idw
     from roofhelper.io import SchemeFileHandler
@@ -87,7 +87,7 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
         tile = handler.download_file(source, name)
         log.info(f"Downloaded {name} in {time.perf_counter() - t0:.2f}s")
 
-        tile_filled = f"{temporary_directory}/{tile.stem}_filled.tif"
+        tile_filled = temporary_directory / f"{tile.stem}_filled.tif"
         log.info(f"Fill no data for {name}")
         t1 = time.perf_counter()
         image_interpolation_idw(input_file=tile, output_file=tile_filled, k=8, power=2.0, batch_size=500_000)  # batch size has the most influence on memory usage
@@ -96,8 +96,7 @@ def workerfunc(workerid: int, source: str, intermediate: str) -> None:
         log.info(f"Warping {name}")
         tile_warped = temporary_directory / f"{name}_warped_4326.tif"
         t2 = time.perf_counter()
-        subprocess.run(["gdalwarp", "-s_srs", "EPSG:7415", "-co", "TILES=YES", "-co", "BLOCKXSIZE=67", "-co", "BLOCKYSIZE=67", "-q", "-t_srs", "EPSG:4326", tile_filled, tile_warped], check=True)
-        subprocess.run(["gdaladdo", "-r", "nearest", tile_warped, "2", "4", "8"], check=True)
+        reproject_image(tile_filled, "EPSG:7415", tile_warped, "EPSG:4979")
         log.info(f"Warped {name} in {time.perf_counter() - t2:.2f}s")
 
         handler.upload_file_directory(tile_warped, intermediate, name)
@@ -119,6 +118,12 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     import subprocess
     from pathlib import Path
 
+    from qmesh.cesium import render_layerjson
+    from qmesh.mesh import (apply_vertex_averaging, encode_terrain_tiles,
+                            generate_intermediate_tiles,
+                            generate_terrain_dummy)
+    from qmesh.pyramid import calculate_pyramid
+    from qmesh.raster import image_get_boundingbox
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
 
@@ -137,73 +142,82 @@ def mergerfunc(intermediate: str, destination: str) -> None:
 
     log.info(f"Found {len(warped_files)} warped tiles")
 
-    start_zoom = 15
-    end_zoom = 0
-
-    log.info("")
     warped_file_list = temporary_directory / "warped.txt"
     with open(warped_file_list, "w") as f:
         f.writelines(warped_files)
 
     # Build a VRT from our list of warped tifs into the temporary directory
     log.info("Build vrt for tiles")
-    warped_tile_vrt = temporary_directory / f"level{start_zoom + 1}.vrt"
-    subprocess.run(["gdalbuildvrt", "-input_file_list", warped_file_list, warped_tile_vrt], check=True)
+    heightmap = temporary_directory / "heightmap.vrt"
+    subprocess.run(["gdalbuildvrt", "-input_file_list", warped_file_list, heightmap], check=True)
 
-    output_directory: Path = temporary_directory / "quantized_mesh"
-    os.makedirs(output_directory, exist_ok=True)
+    dataset_bbox = image_get_boundingbox(heightmap)
+    log.info(
+        "Dataset bounds:",
+        dataset_bbox.minx,
+        dataset_bbox.miny,
+        dataset_bbox.maxx,
+        dataset_bbox.maxy,
+    )
 
-    try:
-        log.info("Creating layer.json file...")
-        subprocess.run([
-            "ctb-tile", "-v", "-f", "Mesh", "-C", "-N", "-s", str(start_zoom), "-e", str(end_zoom), "-l", "--output-dir", str(output_directory), warped_tile_vrt
-        ], check=True)
+    layerjson_str = render_layerjson(dataset_bbox, 15)
 
-        for zoom_level in range(start_zoom, -1, -1):
-            zoom_vrt: str = str(temporary_directory / f"level{zoom_level + 1}.vrt")
-            zoom_level_dir: Path = temporary_directory / "zoom" / str(zoom_level)
-            os.makedirs(zoom_level_dir, exist_ok=True)
+    tiles_output_dir = temporary_directory / "tiles"
+    tiles_output_dir.mkdir(parents=True, exist_ok=True)
+    layerjson_path = tiles_output_dir / "layer.json"
+    layerjson_path.write_text(layerjson_str)
+    log.info(f"Wrote layer.json to {layerjson_path}")
 
-            log.info(f"Creating terrain mesh for {zoom_level}...")
-            subprocess.run([
-                "ctb-tile", "-v", "-s", str(zoom_level), "-e", str(zoom_level), "--output-dir", str(output_directory), zoom_vrt
-            ], check=True)
+    # Generate dummy tiles for lower zoom levels (0-6)
+    dummy_tiles = calculate_pyramid(dataset_bbox, 0, 6)
+    log.info(f"Generating {len(dummy_tiles)} dummy tiles (zoom 0-6)...")
+    generate_terrain_dummy(dummy_tiles, tiles_output_dir)
 
-            log.info(f"Done creating the terrain mesh, now create a tif for zoomlevel, we will use it to create another mesh {zoom_level}...")
-            subprocess.run([
-                "ctb-tile", "-v", "--output-format", "GTiff", "-s", str(zoom_level), "-e", str(zoom_level), "--output-dir", str(zoom_level_dir), zoom_vrt
-            ], check=True)
+    # Generate real tiles for higher zoom levels (7-15)
+    real_tiles = calculate_pyramid(dataset_bbox, 6, 15)
+    log.info(f"Generating {len(real_tiles)} real tiles (zoom 7-15)...")
 
-            # Create the list of files
-            tif_files: list[str] = []
+    # Configuration
+    max_workers = os.cpu_count()  # Use all available CPU cores
+    intermediate_dir = temporary_directory / "intermediate"
 
-            # Find all files matching the pattern
-            for file_path in zoom_level_dir.rglob("*.tif"):
-                if file_path.is_file():
-                    tif_files.append(str(file_path))
+    log.info(f"  Workers: {max_workers}")
+    log.info(f"  Intermediate directory: {intermediate_dir}")
 
-            if not tif_files:
-                raise FileNotFoundError("No files found matching the pattern")
+    # Phase 1: Generate intermediate tiles (TINs)
+    log.info(f"\n{'=' * 70}")
+    generate_intermediate_tiles(
+        heightmap,
+        real_tiles,
+        intermediate_dir,
+        max_workers=max_workers,
+    )
 
-            # Sort files for consistent ordering
-            tif_files.sort()
+    # Phase 2: Apply vertex averaging
+    log.info(f"\n{'=' * 70}")
+    apply_vertex_averaging(
+        intermediate_dir,
+        max_workers=max_workers,
+    )
 
-            # Write file list to temporary text file
-            temp_list_file: Path = zoom_level_dir / "tiffs.txt"
-            with open(temp_list_file, 'w') as f:
-                for tif_file in tif_files:
-                    f.write(f"{tif_file}\n")
+    for warped_file in warped_files:
+        os.unlink(warped_file) # Save some space by removing the warped files, we dont need them anymore.
 
-            level_vrt = temporary_directory / f"level{zoom_level}.vrt"
-            log.info(f"Create vrt for GTiff tiles on level {zoom_level}...")
-            subprocess.run(["gdalbuildvrt", '-input_file_list', temp_list_file, str(level_vrt)], check=True)
+    # Phase 3: Encode terrain tiles
+    log.info(f"\n{'=' * 70}")
+    encode_terrain_tiles(
+        intermediate_dir,
+        tiles_output_dir,
+        max_workers=max_workers
+    )
 
-        handler.upload_folder(output_directory, handler.navigate(destination, "mesh"))
-        handler.upload_folder(temporary_directory / "zoom", handler.navigate(destination, "source"))
-    except FileNotFoundError as e:
-        log.error(f"External command not found: {e}. Ensure ctb-tile and gdalbuildvrt are installed and in PATH.")
-    except subprocess.CalledProcessError as e:
-        log.error(f"External command failed with exit code {e.returncode}: {e}")
+    log.info(f"\n{'=' * 70}")
+    log.info("Tile generation complete!")
+
+    log.info("Uploading tiles")
+    handler.upload_folder(tiles_output_dir, destination)
+
+    log.info("Done with the workflow, enjoy!")
 
 
 def generate_workflow() -> None:
