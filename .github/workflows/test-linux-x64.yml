@@ -11,65 +11,49 @@ jobs:
     runs-on: ubuntu-latest
     env:
       PDAL_VERSION: "2.8-maintenance"
-      PDAL_SRC: ${{ runner.temp }}/pdal-src
-      PDAL_BUILD: ${{ runner.temp }}/pdal-build
-      CCACHE_DIR: ${{ runner.temp }}/ccache
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
       - name: Install system dependencies
         run: |
-          export DEBIAN_FRONTEND=noninteractive          
-          apt-get update
-          apt-get install -y --no-install-recommends \
+          export DEBIAN_FRONTEND=noninteractive
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
             gdal-bin libgdal-dev build-essential git cmake pkg-config \
             libgeotiff-dev liblaszip-dev libproj-dev libxml2-dev libzstd-dev \
-            liblzma-dev libboost-all-dev ccache python3-dev
+            liblzma-dev python3-dev
 
-
-      - name: Prepare ccache
-        shell: bash
-        run: |
-          mkdir -p "${CCACHE_DIR}"
-          export CCACHE_DIR="${CCACHE_DIR}"
-          ccache --max-size=2G || true
-
-      - name: Restore PDAL and ccache cache
+      - name: Cache PDAL installation
+        id: cache-pdal
         uses: actions/cache@v4
         with:
           path: |
-            ${{ env.PDAL_SRC }}
-            ${{ env.PDAL_BUILD }}
-            ${{ env.CCACHE_DIR }}
-            ~/.ccache
-          key: pdal-${{ runner.os }}-v${{ env.PDAL_VERSION }}
+            /usr/local/bin/pdal
+            /usr/local/lib/libpdal*
+            /usr/local/include/pdal
+          key: pdal-${{ runner.os }}-${{ env.PDAL_VERSION }}-v3
 
-      - name: Build PDAL from source (cached)
+      - name: Build and install PDAL
+        if: steps.cache-pdal.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euxo pipefail
-          mkdir -p "${PDAL_SRC}"
-          if [ ! -d "${PDAL_SRC}/.git" ]; then
-            git clone --depth 1 --branch "${PDAL_VERSION}" https://github.com/PDAL/PDAL.git "${PDAL_SRC}"
-          else
-            echo "Using cached PDAL source in ${PDAL_SRC}"
-          fi
-          mkdir -p "${PDAL_BUILD}"
-          cd "${PDAL_BUILD}"
-          cmake "${PDAL_SRC}" \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_INSTALL_PREFIX=/usr/local \
-            -DBUILD_PLUGIN_PYTHON=ON \
-            -DBUILD_TESTING=OFF \
-            -DPYTHON_EXECUTABLE=$(which python3)
+          
+          # Clone and build PDAL (matching Dockerfile)
+          git clone --branch "${PDAL_VERSION}" --depth 1 https://github.com/PDAL/PDAL.git
+          cd PDAL
+          mkdir build
+          cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
           make -j$(nproc)
+          sudo make install
+          cd ../..
+          rm -rf PDAL
 
-      - name: Install PDAL
+      - name: Update library cache
         shell: bash
-        run: |
-          sudo cmake --install "${PDAL_BUILD}" --strip --prefix /usr/local || sudo make -C "${PDAL_BUILD}" install
-          sudo ldconfig
+        run: sudo ldconfig
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
