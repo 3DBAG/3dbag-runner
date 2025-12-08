@@ -5,8 +5,35 @@ RUN wget https://cdn.proj.org/nl_nsgi_nlgeo2018.tif -O /usr/local/share/proj/nl_
     wget https://cdn.proj.org/nl_nsgi_rdtrans2018.tif -O /usr/local/share/proj/nl_nsgi_rdtrans2018.tif
 
 # Install system dependencies with cleanup in single layer
+# Install helper packages, add UbuntuGIS PPA (provides newer GIS packages including PDAL),
+# then install PDAL and development headers. Clean apt lists to reduce image size.
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends curl libffi-dev
+    apt-get install -y --no-install-recommends \
+        software-properties-common dirmngr gnupg ca-certificates curl libffi-dev \
+        python3-dev build-essential cmake
+
+RUN add-apt-repository -y ppa:ubuntugis/ubuntugis-unstable && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git \
+        libgdal-dev \
+        libgeotiff-dev \
+        liblaszip-dev \
+        libproj-dev \
+        libxml2-dev \
+        libzstd-dev && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Build PDAL from source 
+RUN git clone --branch 2.8-maintenance --depth 1 https://github.com/PDAL/PDAL.git && \
+    cd PDAL && \
+    mkdir build && \
+    cd build && \
+    cmake .. -DCMAKE_BUILD_TYPE=Release && \
+    make -j$(nproc) && \
+    make install && \
+    cd ../.. && \
+    rm -rf PDAL
 
 ENV PATH="/app/.venv/bin:$PATH"
 ENV GF_PLUGIN_FOLDER="/usr/local/lib/geoflow-plugins"
