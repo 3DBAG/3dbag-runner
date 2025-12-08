@@ -9,7 +9,7 @@ from qmesh.pyramid import describe_zoom_levels
 
 
 @dataclass
-class TileBounds:  # noqa: N815
+class CesiumZoomlevelBounds:  # noqa: N815
     """Tile bounds for a zoom level."""
 
     startX: int  # pylint: disable=invalid-name
@@ -19,7 +19,7 @@ class TileBounds:  # noqa: N815
 
 
 @dataclass
-class LayerConfig:
+class CesiumLayerConfiguration:
     """Configuration for a Cesium layer.json file."""
 
     tilejson: str = "2.1.0"
@@ -53,7 +53,7 @@ def render_layerjson(boundingbox: BoundingBox, max_zoom_level: int) -> str:
     for zoom in range(max_zoom_level + 1):
         desc = summary_by_zoom.get(zoom)
         if desc and desc.n_tiles > 0:
-            bounds_entry = TileBounds(
+            bounds_entry = CesiumZoomlevelBounds(
                 startX=desc.min_tile_x,
                 startY=desc.min_tile_y,
                 endX=desc.max_tile_x,
@@ -63,7 +63,7 @@ def render_layerjson(boundingbox: BoundingBox, max_zoom_level: int) -> str:
         else:
             available.append([])
 
-    layer_config = LayerConfig(
+    layer_config = CesiumLayerConfiguration(
         description=f"Tiles up to zoom {max_zoom_level}",
         bounds=[
             boundingbox.minx,

@@ -201,7 +201,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     )
 
     for warped_file in warped_files:
-        os.unlink(warped_file) # Save some space by removing the warped files, we dont need them anymore.
+        os.unlink(warped_file)  # Save some space by removing the warped files, we dont need them anymore.
 
     # Phase 3: Encode terrain tiles
     log.info(f"\n{'=' * 70}")

@@ -61,7 +61,7 @@ requires-dist = [
     { name = "rasterio", specifier = ">=1.4.3" },
     { name = "requests", specifier = ">=2.32.3" },
     { name = "requests-aws4auth", specifier = ">=1.3.1" },
-    { name = "scipy", extras = ["spatial"], specifier = ">=1.16.2" },
+    { name = "scipy", specifier = ">=1.16.2" },
     { name = "shapely", specifier = ">=2.1.0" },
     { name = "tenacity", specifier = ">=9.1.2" },
     { name = "toml", specifier = ">=0.10.2" },
