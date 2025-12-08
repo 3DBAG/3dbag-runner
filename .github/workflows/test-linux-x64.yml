@@ -9,20 +9,67 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      PDAL_VERSION: "2.8-maintenance"
+      PDAL_SRC: ${{ runner.temp }}/pdal-src
+      PDAL_BUILD: ${{ runner.temp }}/pdal-build
+      CCACHE_DIR: ${{ runner.temp }}/ccache
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
 
       - name: Install system dependencies
         run: |
-          export DEBIAN_FRONTEND=noninteractive
-          if command -v sudo >/dev/null 2>&1; then
-            sudo apt-get update
-            sudo apt-get install -y --no-install-recommends gdal-bin libgdal-dev build-essential
+          export DEBIAN_FRONTEND=noninteractive          
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            gdal-bin libgdal-dev build-essential git cmake pkg-config \
+            libgeotiff-dev liblaszip-dev libproj-dev libxml2-dev libzstd-dev \
+            liblzma-dev libboost-all-dev ccache python3-dev
+
+
+      - name: Prepare ccache
+        shell: bash
+        run: |
+          mkdir -p "${CCACHE_DIR}"
+          export CCACHE_DIR="${CCACHE_DIR}"
+          ccache --max-size=2G || true
+
+      - name: Restore PDAL and ccache cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ env.PDAL_SRC }}
+            ${{ env.PDAL_BUILD }}
+            ${{ env.CCACHE_DIR }}
+            ~/.ccache
+          key: pdal-${{ runner.os }}-v${{ env.PDAL_VERSION }}
+
+      - name: Build PDAL from source (cached)
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p "${PDAL_SRC}"
+          if [ ! -d "${PDAL_SRC}/.git" ]; then
+            git clone --depth 1 --branch "${PDAL_VERSION}" https://github.com/PDAL/PDAL.git "${PDAL_SRC}"
           else
-            apt-get update
-            apt-get install -y --no-install-recommends gdal-bin libgdal-dev build-essential
+            echo "Using cached PDAL source in ${PDAL_SRC}"
           fi
+          mkdir -p "${PDAL_BUILD}"
+          cd "${PDAL_BUILD}"
+          cmake "${PDAL_SRC}" \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_INSTALL_PREFIX=/usr/local \
+            -DBUILD_PLUGIN_PYTHON=ON \
+            -DBUILD_TESTING=OFF \
+            -DPYTHON_EXECUTABLE=$(which python3)
+          make -j$(nproc)
+
+      - name: Install PDAL
+        shell: bash
+        run: |
+          sudo cmake --install "${PDAL_BUILD}" --strip --prefix /usr/local || sudo make -C "${PDAL_BUILD}" install
+          sudo ldconfig
 
       - name: Install uv
         uses: astral-sh/setup-uv@v6
@@ -37,17 +84,5 @@ jobs:
           uv run flake8 ./src
           uv run mypy ./src
 
-      # - name: Install and start Azurite emulator
-      #   run: |
-      #     npm install -g azurite
-      #     azurite --silent --location __azurite_db__ --debug __azurite_db__/debug.log &
-      #     sleep 5
-      #     # Verify Azurite is running
-      #     curl -f http://127.0.0.1:10000/devstoreaccount1 || echo "Azurite health check failed, but continuing..."
-
-      # - name: Run tests
-      #   run: |
-      #     cd src
-      #     uv run pytest ../tests
 
         
