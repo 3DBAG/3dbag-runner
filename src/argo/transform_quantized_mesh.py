@@ -18,8 +18,8 @@ def queuefunc(source: str, intermediate: str, workercount: int) -> None:
     log = setup_logging(logging.INFO)
 
     file_handler = SchemeFileHandler(Path("/workflow"))
-    tifs_source = file_handler.list_entries_shallow(source)
-    tifs_generated_set = {x.name for x in file_handler.list_entries_shallow(intermediate)}
+    tifs_source = file_handler.list_entries_shallow(source, regex=r"(?i)^.*\.tif$")
+    tifs_generated_set = {x.name for x in file_handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$")}
 
     queue = []
     for worker, entry in enumerate(tifs_source):
@@ -199,9 +199,6 @@ def mergerfunc(intermediate: str, destination: str) -> None:
         intermediate_dir,
         max_workers=max_workers,
     )
-
-    for warped_file in warped_files:
-        os.unlink(warped_file)  # Save some space by removing the warped files, we dont need them anymore.
 
     # Phase 3: Encode terrain tiles
     log.info(f"\n{'=' * 70}")
