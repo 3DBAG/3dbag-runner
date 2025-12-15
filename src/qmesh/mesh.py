@@ -463,6 +463,35 @@ def _write_tile(
                  Set to True when vertices come from pydelatin output.
                  Set to False when vertices are already in geographic coordinates.
     """
+    terrain_data = _encode_tile_to_bytes(tile, vertices, triangles, rescale)
+
+    # Write to disk
+    tile_path = (
+        output_dir / str(tile.zoom) / str(tile.tile_x) / f"{tile.tile_y}.terrain"
+    )
+    tile_path.parent.mkdir(parents=True, exist_ok=True)
+    tile_path.write_bytes(terrain_data)
+
+
+def _encode_tile_to_bytes(
+    tile: Tile,
+    vertices: NDArray[Any],
+    triangles: NDArray[Any],
+    rescale: bool = False,
+) -> bytes:
+    """Encode terrain tile to bytes without writing to disk.
+
+    Args:
+        tile: Tile descriptor with zoom, x, y, and bounding box
+        vertices: Vertex array, either in pixel space or geographic coordinates
+        triangles: Triangle indices
+        rescale: If True, rescale vertices from pixel space to geographic coordinates.
+                 Set to True when vertices come from pydelatin output.
+                 Set to False when vertices are already in geographic coordinates.
+
+    Returns:
+        bytes: Encoded quantized mesh terrain tile data
+    """
     bounds = (
         tile.boundingbox.minx,
         tile.boundingbox.miny,
@@ -484,14 +513,7 @@ def _write_tile(
         buf, vertices_geo, triangles, bounds=bounds, sphere_method="ritter"
     )
     buf.seek(0)
-    terrain_data = buf.read()
-
-    # Write to disk
-    tile_path = (
-        output_dir / str(tile.zoom) / str(tile.tile_x) / f"{tile.tile_y}.terrain"
-    )
-    tile_path.parent.mkdir(parents=True, exist_ok=True)
-    tile_path.write_bytes(terrain_data)
+    return buf.read()
 
 
 def generate_terrain_dummy(tiles: list[Tile], output_dir: Path) -> None:
@@ -561,64 +583,92 @@ def _generate_single_tin(
         return metadata
 
 
+def _generate_single_tin_streaming(
+    dataset_path: Path,
+    tile: Tile,
+    tile_size: int,
+) -> tuple[Tile, NDArray[Any], NDArray[Any]]:
+    """Generate TIN for a single tile and return vertices/triangles (streaming).
+
+    This function is used by generate_intermediate_tiles for streaming parallel processing.
+    Returns the tile and its TIN data without saving to disk.
+    """
+    with rasterio.open(dataset_path) as dataset:
+        window = from_bounds(
+            tile.boundingbox.minx,
+            tile.boundingbox.miny,
+            tile.boundingbox.maxx,
+            tile.boundingbox.maxy,
+            dataset.transform,
+        )
+
+        heightmap = dataset.read(
+            1,
+            window=window,
+            out_shape=(tile_size, tile_size),
+            resampling=Resampling.lanczos,
+            fill_value=0.0,
+        ).astype(np.float32)
+
+        # Triangulate with pydelatin
+        tin = Delatin(heightmap, max_error=0.001, level=False, border_height=0)
+
+        return tile, tin.vertices, tin.triangles
+
+
 def generate_intermediate_tiles(
     dataset_path: Path,
     tiles: list[Tile],
     intermediate_dir: Path,
     tile_size: int = 65,
     max_workers: int | None = None,
-) -> None:
-    """Phase 1: Generate TINs and save to disk as intermediate representation.
+) -> Any:
+    """Phase 1: Generate TINs and yield them as they're completed (streaming).
 
-    Triangulates each tile using pydelatin and saves the results as compressed
-    .npz files. This phase is fully parallelizable and supports resume.
+    Triangulates each tile using pydelatin and yields the results immediately
+    without writing to disk. This phase is fully parallelizable.
 
     Args:
         dataset_path: Path to the heightmap raster dataset
         tiles: List of tiles to generate
-        intermediate_dir: Directory to store intermediate .npz files
+        intermediate_dir: Directory to store intermediate .npz files (unused in streaming mode)
         tile_size: Size of the heightmap to read (default 65)
         max_workers: Maximum number of parallel workers (default: CPU count)
-        progress_callback: Optional callback function(completed, total)
 
-    Returns:
-        Dictionary mapping (zoom, tile_x, tile_y) to IntermediateTileMetadata
+    Yields:
+        tuple[Tile, NDArray, NDArray]: (tile, vertices, triangles) for each processed tile
     """
-    intermediate_dir.mkdir(parents=True, exist_ok=True)
+    logger.info(f"Phase 1: Generating {len(tiles)} intermediate tiles (streaming)...")
 
-    logger.info(f"Phase 1: Generating {len(tiles)} intermediate tiles...")
-    logger.info(f"  Output directory: {intermediate_dir}")
-
-    metadata_index = {}
     completed = 0
     total = len(tiles)
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
-                _generate_single_tin,
+                _generate_single_tin_streaming,
                 dataset_path,
                 tile,
                 tile_size,
-                intermediate_dir,
             ): tile
             for tile in tiles
         }
 
         for future in as_completed(futures):
             try:
-                metadata = future.result()
-                metadata_index[metadata.tile_key] = metadata
+                tile, vertices, triangles = future.result()
                 completed += 1
 
                 if completed % 100 == 0 or completed == total:
                     logger.info(f"  Progress: {completed}/{total} tiles completed")
 
+                yield tile, vertices, triangles
+
             except Exception as e:
                 tile = futures[future]
                 logger.error(f"  Error processing tile {tile}: {e}")
 
-    logger.info(f"Phase 1 complete: {len(metadata_index)} tiles generated")
+    logger.info(f"Phase 1 complete: {completed} tiles generated")
 
 
 def _process_edge_batch(
@@ -831,3 +881,97 @@ def encode_terrain_tiles(
                 logger.error(f"  Error encoding tile {metadata.tile_key}: {e}")
 
     logger.info(f"Phase 3 complete: {completed} terrain tiles generated")
+
+
+def encode_terrain_tiles_streaming(
+    tile_generator: Any,
+    destination_uri: str,
+    max_workers: int | None = None,
+) -> None:
+    """Phase 3: Encode and upload terrain tiles directly (streaming).
+
+    Consumes a generator of (tile, vertices, triangles), encodes them as quantized
+    mesh terrain tiles, and uploads directly to the destination without intermediate storage.
+
+    Args:
+        tile_generator: Generator yielding (tile, vertices, triangles) tuples
+        destination_uri: Azure URI for uploading tiles (e.g., "azure://https://...")
+        max_workers: Maximum number of parallel workers (default: CPU count)
+    """
+    from roofhelper.io import SchemeFileHandler
+
+    logger.info("Phase 3: Encoding and uploading terrain tiles (streaming)...")
+    logger.info(f"  Destination: {destination_uri}")
+
+    handler = SchemeFileHandler(Path("/tmp"))  # Path not actually used for uploads
+    completed = 0
+
+    # Use ThreadPoolExecutor to process tiles in parallel as they arrive
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {}
+        
+        for tile, vertices, triangles in tile_generator:
+            future = executor.submit(
+                _encode_and_upload_single_tile,
+                tile,
+                vertices,
+                triangles,
+                destination_uri,
+                handler,
+            )
+            futures[future] = tile
+            
+            # Process completed futures periodically to avoid memory buildup
+            if len(futures) >= (max_workers or 1) * 2:
+                done_futures = [f for f in futures if f.done()]
+                for future in done_futures:
+                    try:
+                        future.result()
+                        completed += 1
+                        if completed % 100 == 0:
+                            logger.info(f"  Progress: {completed} tiles encoded and uploaded")
+                    except Exception as e:
+                        tile = futures[future]
+                        logger.error(f"  Error encoding/uploading tile {tile}: {e}")
+                    del futures[future]
+        
+        # Wait for remaining futures
+        for future in as_completed(futures):
+            try:
+                future.result()
+                completed += 1
+                if completed % 100 == 0:
+                    logger.info(f"  Progress: {completed} tiles encoded and uploaded")
+            except Exception as e:
+                tile = futures[future]
+                logger.error(f"  Error encoding/uploading tile {tile}: {e}")
+
+    logger.info(f"Phase 3 complete: {completed} terrain tiles encoded and uploaded")
+
+
+def _encode_and_upload_single_tile(
+    tile: Tile,
+    vertices: NDArray[Any],
+    triangles: NDArray[Any],
+    destination_uri: str,
+    handler: Any,
+) -> None:
+    """Encode a single tile and upload directly to destination.
+    
+    Args:
+        tile: Tile descriptor
+        vertices: Vertex array from TIN generation
+        triangles: Triangle indices from TIN generation
+        destination_uri: Base URI for tile destination
+        handler: SchemeFileHandler instance for uploads
+    """
+    # Encode tile to bytes (rescale=True since vertices are from pydelatin)
+    terrain_data = _encode_tile_to_bytes(tile, vertices, triangles, rescale=True)
+    
+    # Construct destination path: destination_uri/zoom/x/y.terrain
+    tile_path = f"{tile.zoom}/{tile.tile_x}/{tile.tile_y}.terrain"
+    full_uri = handler.navigate(destination_uri, tile_path)
+    
+    # Upload bytes directly
+    buf = BytesIO(terrain_data)
+    handler.upload_bytes_direct(buf, full_uri)

@@ -1,3 +1,4 @@
+from importlib.metadata import files
 from hera.workflows import DAG, Artifact, Parameter, Script
 from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy
 
@@ -117,10 +118,11 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     import os
     import subprocess
     from concurrent.futures import ThreadPoolExecutor
+    from io import BytesIO
     from pathlib import Path
 
     from qmesh.cesium import render_layerjson
-    from qmesh.mesh import (apply_vertex_averaging, encode_terrain_tiles,
+    from qmesh.mesh import (encode_terrain_tiles_streaming,
                             generate_intermediate_tiles,
                             generate_terrain_dummy)
     from qmesh.pyramid import calculate_pyramid
@@ -137,18 +139,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     log.info("Listing files")
     files_to_download = list(handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$"))
     
-    def _download_tile(index_tile: tuple[int, EntryProperties]) -> str:
-        index, tile = index_tile
-        log.info(f"Downloading [{index}/{len(files_to_download)}] {tile.name}")
-        warped_tile_path = str(handler.download_file(tile.full_uri))
-        return warped_tile_path + "\n"
-    
-    max_workers = os.cpu_count()
-    log.info(f"Downloading {len(files_to_download)} files with {max_workers} workers")
-    
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        warped_files = list(executor.map(_download_tile, enumerate(files_to_download)))
-
+    warped_files: list[str] = [x.full_uri.replace("azure://", "/vsicurl/") for x in files_to_download]
     log.info(f"Found {len(warped_files)} warped tiles")
 
     warped_file_list = temporary_directory / "warped.txt"
@@ -171,57 +162,52 @@ def mergerfunc(intermediate: str, destination: str) -> None:
 
     layerjson_str = render_layerjson(dataset_bbox, 15)
 
+    # Upload layer.json directly
+    log.info("Uploading layer.json")
+    layerjson_bytes = BytesIO(layerjson_str.encode('utf-8'))
+    handler.upload_bytes_direct(layerjson_bytes, handler.navigate(destination, "tiles/layer.json"))
+
+    # Generate and upload dummy tiles for lower zoom levels (0-6)
+    dummy_tiles = calculate_pyramid(dataset_bbox, 0, 12)
+    log.info(f"Generating and uploading {len(dummy_tiles)} dummy tiles (zoom 0-6)...")
     tiles_output_dir = temporary_directory / "tiles"
     tiles_output_dir.mkdir(parents=True, exist_ok=True)
-    layerjson_path = tiles_output_dir / "layer.json"
-    layerjson_path.write_text(layerjson_str)
-    log.info(f"Wrote layer.json to {layerjson_path}")
-
-    # Generate dummy tiles for lower zoom levels (0-6)
-    dummy_tiles = calculate_pyramid(dataset_bbox, 0, 13)
-    log.info(f"Generating {len(dummy_tiles)} dummy tiles (zoom 0-6)...")
     generate_terrain_dummy(dummy_tiles, tiles_output_dir)
+    
+    # Upload dummy tiles
+    log.info("Uploading dummy tiles")
+    handler.upload_folder(tiles_output_dir, handler.navigate(destination, "tiles"))
 
     # Generate real tiles for higher zoom levels (7-15)
-    real_tiles = calculate_pyramid(dataset_bbox, 13, 15)
+    real_tiles = calculate_pyramid(dataset_bbox, 12, 15)
     log.info(f"Generating {len(real_tiles)} real tiles (zoom 7-15)...")
 
     # Configuration
     intermediate_dir = temporary_directory / "intermediate"
-
+    # os.cpu_count() may return None in some environments; default to 1 CPU to avoid TypeError
+    max_workers = (os.cpu_count() or 1) * 32
     log.info(f"  Workers: {max_workers}")
     log.info(f"  Intermediate directory: {intermediate_dir}")
 
-    # Phase 1: Generate intermediate tiles (TINs)
+    # Phase 1: Generate intermediate tiles (TINs) - streaming generator
     log.info(f"\n{'=' * 70}")
-    generate_intermediate_tiles(
+    tile_generator = generate_intermediate_tiles(
         heightmap,
         real_tiles,
         intermediate_dir,
         max_workers=max_workers,
     )
 
-    # # Phase 2: Apply vertex averaging
-    # log.info(f"\n{'=' * 70}")
-    # apply_vertex_averaging(
-    #     intermediate_dir,
-    #     max_workers=max_workers,
-    # )
-
-    # Phase 3: Encode terrain tiles
+    # Phase 3: Encode and upload terrain tiles directly (consumes the generator)
     log.info(f"\n{'=' * 70}")
-    encode_terrain_tiles(
-        intermediate_dir,
-        tiles_output_dir,
+    encode_terrain_tiles_streaming(
+        tile_generator,
+        handler.navigate(destination, "tiles"),
         max_workers=max_workers
     )
 
     log.info(f"\n{'=' * 70}")
-    log.info("Tile generation complete!")
-
-    log.info("Uploading tiles")
-    handler.upload_folder(tiles_output_dir, destination)
-
+    log.info("Tile generation and upload complete!")
     log.info("Done with the workflow, enjoy!")
 
 
