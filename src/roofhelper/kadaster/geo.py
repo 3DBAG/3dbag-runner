@@ -40,7 +40,7 @@ def _generate_cells(
             yield result
 
 
-def grid_create_on_intersecting_centroid(filepath: Path, grid_size: int) -> Generator[tuple[float, float, float, float]]:
+def grid_create_on_intersecting_centroid(filepath: Path, grid_size: int) -> Generator[tuple[float, float, float, float], None, None]:
     bounds = None
 
     with fiona.open(filepath, 'r') as src:

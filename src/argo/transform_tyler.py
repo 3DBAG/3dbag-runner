@@ -20,7 +20,7 @@ def queuefunc(workercount: int, source: str) -> None:
     file_handler = SchemeFileHandler(Path("/workflow"))
 
     FILENAME_BUILDING_RE = re.compile(r".+_(\d+)_(\d+)\.city\.json$")
-    FILENAME_TERRAIN_RE = re.compile(r"(i?)^(\d{6})\.city\.json$")
+    FILENAME_TERRAIN_RE = re.compile(r"(?i)^(\d{6})\.city\.json$")
     TILE_SIZE = 2_000  # 2 km grid spacing in RD New
 
     def _parse_tile_coords(filename: str) -> tuple[int, int]:
