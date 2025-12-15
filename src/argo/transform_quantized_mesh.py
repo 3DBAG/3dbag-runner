@@ -116,6 +116,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     import logging
     import os
     import subprocess
+    from concurrent.futures import ThreadPoolExecutor
     from pathlib import Path
 
     from qmesh.cesium import render_layerjson
@@ -126,6 +127,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     from qmesh.raster import image_get_boundingbox
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
+    from roofhelper.io.EntryProperties import EntryProperties
 
     log = setup_logging(logging.INFO)
 
@@ -133,12 +135,19 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     handler = SchemeFileHandler(temporary_directory)
 
     log.info("Listing files")
-    warped_files = []
     files_to_download = list(handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$"))
-    for index, tile in enumerate(files_to_download):
-        log.info(f"Downloading [{len(files_to_download)}/{index}] {tile.name}")
+    
+    def _download_tile(index_tile: tuple[int, EntryProperties]) -> str:
+        index, tile = index_tile
+        log.info(f"Downloading [{index}/{len(files_to_download)}] {tile.name}")
         warped_tile_path = str(handler.download_file(tile.full_uri))
-        warped_files.append(warped_tile_path + "\n")
+        return warped_tile_path + "\n"
+    
+    max_workers = os.cpu_count()
+    log.info(f"Downloading {len(files_to_download)} files with {max_workers} workers")
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        warped_files = list(executor.map(_download_tile, enumerate(files_to_download)))
 
     log.info(f"Found {len(warped_files)} warped tiles")
 
@@ -169,16 +178,15 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     log.info(f"Wrote layer.json to {layerjson_path}")
 
     # Generate dummy tiles for lower zoom levels (0-6)
-    dummy_tiles = calculate_pyramid(dataset_bbox, 0, 6)
+    dummy_tiles = calculate_pyramid(dataset_bbox, 0, 13)
     log.info(f"Generating {len(dummy_tiles)} dummy tiles (zoom 0-6)...")
     generate_terrain_dummy(dummy_tiles, tiles_output_dir)
 
     # Generate real tiles for higher zoom levels (7-15)
-    real_tiles = calculate_pyramid(dataset_bbox, 6, 15)
+    real_tiles = calculate_pyramid(dataset_bbox, 13, 15)
     log.info(f"Generating {len(real_tiles)} real tiles (zoom 7-15)...")
 
     # Configuration
-    max_workers = os.cpu_count()  # Use all available CPU cores
     intermediate_dir = temporary_directory / "intermediate"
 
     log.info(f"  Workers: {max_workers}")
@@ -193,12 +201,12 @@ def mergerfunc(intermediate: str, destination: str) -> None:
         max_workers=max_workers,
     )
 
-    # Phase 2: Apply vertex averaging
-    log.info(f"\n{'=' * 70}")
-    apply_vertex_averaging(
-        intermediate_dir,
-        max_workers=max_workers,
-    )
+    # # Phase 2: Apply vertex averaging
+    # log.info(f"\n{'=' * 70}")
+    # apply_vertex_averaging(
+    #     intermediate_dir,
+    #     max_workers=max_workers,
+    # )
 
     # Phase 3: Encode terrain tiles
     log.info(f"\n{'=' * 70}")
