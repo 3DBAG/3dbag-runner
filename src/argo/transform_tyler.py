@@ -19,14 +19,23 @@ def queuefunc(workercount: int, source: str) -> None:
     logger = setup_logging(logging.INFO)
     file_handler = SchemeFileHandler(Path("/workflow"))
 
-    FILENAME_RE = re.compile(r".+_(\d+)_(\d+)\.city\.json$")
+    FILENAME_BUILDING_RE = re.compile(r".+_(\d+)_(\d+)\.city\.json$")
+    FILENAME_TERRAIN_RE = re.compile(r"(i?)^(\d{6})\.city\.json$")
     TILE_SIZE = 2_000  # 2 km grid spacing in RD New
 
     def _parse_tile_coords(filename: str) -> tuple[int, int]:
-        m = FILENAME_RE.match(filename)
-        if not m:
+        mb = FILENAME_BUILDING_RE.match(filename)
+        mt = FILENAME_TERRAIN_RE.match(filename)
+        if mb:
+            logger.info("Cannot extract RD New coordinates from '{filename}'")
+            return int(mb.group(1)), int(mb.group(2))
+        elif mt:
+            coordinate_string = mt.group(1)
+            y = int(coordinate_string[0:3]) * 1000
+            x = int(coordinate_string[3:6]) * 1000
+            return (x, y)
+        else:
             raise ValueError(f"Cannot extract RD New coordinates from '{filename}'")
-        return int(m.group(1)), int(m.group(2))
 
     def region_key(x: int, y: int, region_tiles: int = 10) -> tuple[int, int]:
         region_size_m = region_tiles * TILE_SIZE

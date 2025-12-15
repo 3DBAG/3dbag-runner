@@ -1,4 +1,3 @@
-from importlib.metadata import files
 from hera.workflows import DAG, Artifact, Parameter, Script
 from hera.workflows.models.io.argoproj.workflow.v1alpha1 import RetryStrategy
 
@@ -117,7 +116,6 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     import logging
     import os
     import subprocess
-    from concurrent.futures import ThreadPoolExecutor
     from io import BytesIO
     from pathlib import Path
 
@@ -129,7 +127,6 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     from qmesh.raster import image_get_boundingbox
     from roofhelper.defaultlogging import setup_logging
     from roofhelper.io import SchemeFileHandler
-    from roofhelper.io.EntryProperties import EntryProperties
 
     log = setup_logging(logging.INFO)
 
@@ -138,7 +135,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
 
     log.info("Listing files")
     files_to_download = list(handler.list_entries_shallow(intermediate, regex=r"(?i)^.*\.tif$"))
-    
+
     warped_files: list[str] = [x.full_uri.replace("azure://", "/vsicurl/") for x in files_to_download]
     log.info(f"Found {len(warped_files)} warped tiles")
 
@@ -173,7 +170,7 @@ def mergerfunc(intermediate: str, destination: str) -> None:
     tiles_output_dir = temporary_directory / "tiles"
     tiles_output_dir.mkdir(parents=True, exist_ok=True)
     generate_terrain_dummy(dummy_tiles, tiles_output_dir)
-    
+
     # Upload dummy tiles
     log.info("Uploading dummy tiles")
     handler.upload_folder(tiles_output_dir, handler.navigate(destination, "tiles"))

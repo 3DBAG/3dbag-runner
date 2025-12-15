@@ -909,7 +909,7 @@ def encode_terrain_tiles_streaming(
     # Use ThreadPoolExecutor to process tiles in parallel as they arrive
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {}
-        
+
         for tile, vertices, triangles in tile_generator:
             future = executor.submit(
                 _encode_and_upload_single_tile,
@@ -920,7 +920,7 @@ def encode_terrain_tiles_streaming(
                 handler,
             )
             futures[future] = tile
-            
+
             # Process completed futures periodically to avoid memory buildup
             if len(futures) >= (max_workers or 1) * 2:
                 done_futures = [f for f in futures if f.done()]
@@ -934,7 +934,7 @@ def encode_terrain_tiles_streaming(
                         tile = futures[future]
                         logger.error(f"  Error encoding/uploading tile {tile}: {e}")
                     del futures[future]
-        
+
         # Wait for remaining futures
         for future in as_completed(futures):
             try:
@@ -957,7 +957,7 @@ def _encode_and_upload_single_tile(
     handler: Any,
 ) -> None:
     """Encode a single tile and upload directly to destination.
-    
+
     Args:
         tile: Tile descriptor
         vertices: Vertex array from TIN generation
@@ -967,11 +967,11 @@ def _encode_and_upload_single_tile(
     """
     # Encode tile to bytes (rescale=True since vertices are from pydelatin)
     terrain_data = _encode_tile_to_bytes(tile, vertices, triangles, rescale=True)
-    
+
     # Construct destination path: destination_uri/zoom/x/y.terrain
     tile_path = f"{tile.zoom}/{tile.tile_x}/{tile.tile_y}.terrain"
     full_uri = handler.navigate(destination_uri, tile_path)
-    
+
     # Upload bytes directly
     buf = BytesIO(terrain_data)
     handler.upload_bytes_direct(buf, full_uri)

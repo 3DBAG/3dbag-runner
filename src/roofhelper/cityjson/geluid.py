@@ -82,7 +82,7 @@ def safe_subtract(value: Any, base: Optional[float]) -> float:
         return 0.0
 
 
-def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building]:
+def read_height_from_cityjson(cityjsonfile: Path) -> Generator[Building, None, None]:
     data = None
 
     with open(cityjsonfile, "r") as f:
